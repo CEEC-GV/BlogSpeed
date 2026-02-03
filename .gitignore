@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Build outputs
+dist/
+build/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# MongoDB
+*.db
+*.sqlite
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+backend/node_modules/
+backend/.env
+backend/vertex-cred.json
+
+blog-frontend/node_modules/
+blog-frontend/dist/
+blog-frontend/.env
