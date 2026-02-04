@@ -15,7 +15,8 @@ export default function SubscribersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
   const [toast, setToast] = useState(null);
-  
+  const [autoBlogEmail, setAutoBlogEmail] = useState(false);
+
   // Broadcast email state
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [broadcastData, setBroadcastData] = useState({
@@ -65,6 +66,14 @@ export default function SubscribersPage() {
   useEffect(() => {
     loadStats();
   }, []);
+  useEffect(() => {
+  api.get("/settings")
+    .then(res => {
+      setAutoBlogEmail(res.data.data.autoBlogEmail);
+    })
+    .catch(() => {});
+}, []);
+
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -215,15 +224,55 @@ export default function SubscribersPage() {
         </div>
 
         {/* RIGHT: Actions */}
-        <div className="flex items-center gap-3">
-          <Button 
-            onClick={() => setShowBroadcast(true)}
-            className="flex items-center gap-2"
-          >
-            <Send className="w-4 h-4" />
-            Send Broadcast
-          </Button>
-        </div>
+        <div className="flex items-center gap-4">
+
+  {/* Auto Email Toggle */}
+  <div
+    onClick={async () => {
+      const nextValue = !autoBlogEmail;
+      setAutoBlogEmail(nextValue);
+
+      try {
+        await api.put("/settings", {
+          autoBlogEmail: nextValue
+        });
+
+        showToast(
+          nextValue
+            ? "Auto email enabled for new blogs"
+            : "Auto email disabled"
+        );
+      } catch {
+        showToast("Failed to update auto email setting", "error");
+        setAutoBlogEmail(!nextValue);
+      }
+    }}
+    className={`cursor-pointer flex items-center gap-3 px-4 h-10 rounded-xl border backdrop-blur transition
+      ${autoBlogEmail
+        ? "bg-green-500/20 border-green-500/30 text-green-300"
+        : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"}`}
+  >
+    <span className="text-sm whitespace-nowrap">
+      Auto Email on New Blog
+    </span>
+
+    <div className={`w-10 h-5 rounded-full relative transition
+      ${autoBlogEmail ? "bg-green-500" : "bg-gray-600"}`}>
+      <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition
+        ${autoBlogEmail ? "right-0.5" : "left-0.5"}`} />
+    </div>
+  </div>
+
+  {/* Existing Broadcast Button */}
+  <Button
+    onClick={() => setShowBroadcast(true)}
+    className="flex items-center gap-2"
+  >
+    <Send className="w-4 h-4" />
+    Send Broadcast
+  </Button>
+</div>
+
       </div>
 
       <div className="mt-8 overflow-x-auto rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg">

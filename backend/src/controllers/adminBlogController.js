@@ -3,6 +3,116 @@ import Blog from "../models/Blog.js";
 import BlogAnalytics from "../models/BlogAnalytics.js";
 import { sanitizeText, sanitizeUrl } from "../utils/sanitize.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import Subscriber from "../models/Subscriber.js";
+import Settings from "../models/Settings.js";
+import { sendMail } from "../utils/sendMail.js";
+
+/**
+ * Send blog notification emails to all subscribed users
+ * This function runs in the background and doesn't block the API response
+ * @param {Object} blog - The blog object that was published
+ */
+async function sendBlogNotificationEmails(blog) {
+  console.log(`\n📧 [EMAIL FLOW] Step 1: Starting email notification for blog: "${blog.title}" (ID: ${blog._id})`);
+  
+  try {
+    // Step 2: Check settings
+    console.log(`📧 [EMAIL FLOW] Step 2: Checking autoBlogEmail setting...`);
+    const settings = await Settings.findOne();
+    
+    if (!settings || settings.autoBlogEmail !== true) {
+      console.log(`📧 [EMAIL FLOW] ⚠️  Auto blog email is disabled in settings. Skipping email notification.`);
+      return { success: false, reason: 'autoBlogEmail disabled' };
+    }
+    console.log(`📧 [EMAIL FLOW] ✅ Auto blog email is enabled`);
+
+    // Step 3: Fetch subscribers
+    console.log(`📧 [EMAIL FLOW] Step 3: Fetching subscribed users...`);
+    const subscribers = await Subscriber.find({ status: "subscribed" });
+    console.log(`📧 [EMAIL FLOW] Found ${subscribers.length} subscribed users`);
+
+    if (subscribers.length === 0) {
+      console.log(`📧 [EMAIL FLOW] ⚠️  No subscribed users found. Email notification skipped.`);
+      return { success: false, reason: 'no subscribers', count: 0 };
+    }
+
+    // Step 4: Build email content
+    console.log(`📧 [EMAIL FLOW] Step 4: Building email content...`);
+    const blogUrl = `${process.env.FRONTEND_URL}/blog/${blog.slug}`;
+    const subject = `🆕 New Blog Published: ${blog.title}`;
+
+    const html = `
+      <div style="font-family:Arial;line-height:1.6;max-width:600px;margin:0 auto;padding:20px;">
+        <h2 style="color:#333;border-bottom:2px solid #eee;padding-bottom:10px;">${blog.title}</h2>
+        <p><strong>Author:</strong> ${blog.author || "BlogSpeed Team"}</p>
+        <p style="color:#666;line-height:1.8;">${blog.excerpt || blog.content.slice(0, 200) + '...'}</p>
+        <a href="${blogUrl}"
+           style="display:inline-block;margin-top:16px;padding:12px 24px;
+           background:#7c3aed;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">
+          Read Full Blog →
+        </a>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+        <p style="font-size:12px;color:#888;text-align:center;">
+          You received this email because you subscribed to BlogSpeed.<br>
+          <a href="${process.env.FRONTEND_URL}/unsubscribe" style="color:#888;">Unsubscribe</a>
+        </p>
+      </div>
+    `;
+
+    // Step 5: Send emails with individual error handling
+    console.log(`📧 [EMAIL FLOW] Step 5: Sending emails to ${subscribers.length} subscribers...`);
+    const results = {
+      sent: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // Send emails in parallel with individual error handling
+    const emailPromises = subscribers.map(async (subscriber) => {
+      try {
+        console.log(`📧 [EMAIL FLOW] Sending email to: ${subscriber.email}`);
+        await sendMail({
+          to: subscriber.email,
+          subject,
+          html
+        });
+        results.sent++;
+        console.log(`📧 [EMAIL FLOW] ✅ Email sent successfully to: ${subscriber.email}`);
+      } catch (error) {
+        results.failed++;
+        results.errors.push({
+          email: subscriber.email,
+          error: error.message
+        });
+        console.error(`📧 [EMAIL FLOW] ❌ Failed to send email to ${subscriber.email}:`, error.message);
+      }
+    });
+
+    await Promise.all(emailPromises);
+
+    // Step 6: Log final results
+    console.log(`\n📧 [EMAIL FLOW] Step 6: Email sending completed!`);
+    console.log(`📧 [EMAIL FLOW] ✅ Successfully sent: ${results.sent} emails`);
+    if (results.failed > 0) {
+      console.log(`📧 [EMAIL FLOW] ❌ Failed: ${results.failed} emails`);
+      console.log(`📧 [EMAIL FLOW] Errors:`, results.errors);
+    }
+    console.log(`📧 [EMAIL FLOW] ==========================================\n`);
+
+    return {
+      success: true,
+      sent: results.sent,
+      failed: results.failed,
+      errors: results.errors
+    };
+
+  } catch (error) {
+    console.error(`\n📧 [EMAIL FLOW] ❌ CRITICAL ERROR in email notification flow:`, error);
+    console.error(`📧 [EMAIL FLOW] Error stack:`, error.stack);
+    console.log(`📧 [EMAIL FLOW] ==========================================\n`);
+    throw error; // Re-throw to be caught by caller
+  }
+}
 
 const buildExcerpt = (content, excerpt) => {
   if (excerpt && excerpt.trim()) return excerpt.trim();
@@ -115,6 +225,8 @@ export const createBlog = asyncHandler(async (req, res) => {
     : slugify(title, { lower: true, strict: true });
 
   const blog = await Blog.create({
+    
+    
     title,
     content,
     excerpt, // meta description
@@ -136,6 +248,13 @@ export const createBlog = asyncHandler(async (req, res) => {
   // Initialize analytics for this blog
   await BlogAnalytics.create({ blogId: blog._id });
 
+  // Trigger email notification if blog is published (non-blocking)
+  if (status?.toLowerCase() === "published") {
+    sendBlogNotificationEmails(blog).catch(err => {
+      console.error("❌ Background email sending failed:", err);
+    });
+  }
+
   res.status(201).json(blog);
 });
 
@@ -148,6 +267,9 @@ export const updateBlog = asyncHandler(async (req, res) => {
   if (!blog) {
     return res.status(404).json({ message: "Blog not found" });
   }
+
+  // Capture previous status BEFORE modifying blog object
+  const previousStatus = blog.status;
 
   const title = sanitizeText(req.body.title ?? blog.title);
   const content = req.body.content ?? blog.content;
@@ -180,6 +302,15 @@ export const updateBlog = asyncHandler(async (req, res) => {
   }
 
   await blog.save();
+
+  // Trigger email notification if status changed from Draft to Published
+  if (previousStatus?.toLowerCase() !== "published" && status?.toLowerCase() === "published") {
+    console.log(`📧 Blog status changed to Published, triggering email notifications for blog: ${blog._id}`);
+    sendBlogNotificationEmails(blog).catch(err => {
+      console.error("❌ Background email sending failed:", err);
+    });
+  }
+
   res.json(blog);
 });
 

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Zap, Sparkles, Plug, CheckCircle2, Star } from 'lucide-react';
+import StartTrialModal from '../components/StartTrialModal.jsx';
 
 const BlogSpeedsLanding = () => {
   const [isPlugged, setIsPlugged] = useState(false);
   const [scrollY, setScrollY] = useState(0);
+  const [showTrialModal, setShowTrialModal] = useState(false);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
@@ -39,6 +42,19 @@ const BlogSpeedsLanding = () => {
     { value: '5min', label: 'Setup Time' },
     { value: '99.9%', label: 'Uptime Guarantee' }
   ];
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleTrialSuccess = () => {
+    showToast("Message sent successfully! We'll get back to you soon.");
+  };
+
+  const handleTrialError = () => {
+    showToast("Failed to send message. Please try again.", "error");
+  };
 
   return (
     <div className="bg-black text-white min-h-screen relative overflow-hidden">
@@ -95,7 +111,10 @@ const BlogSpeedsLanding = () => {
           </p>
 
           <div className="flex gap-4 justify-center animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-            <button className="bg-white text-black px-8 py-4 rounded-full font-medium hover:bg-white/90 transition flex items-center gap-2 group">
+            <button 
+              onClick={() => setShowTrialModal(true)}
+              className="bg-white text-black px-8 py-4 rounded-full font-medium hover:bg-white/90 transition flex items-center gap-2 group"
+            >
               Start Free Trial
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition" />
             </button>
@@ -889,7 +908,10 @@ const BlogSpeedsLanding = () => {
             <p className="text-white/60 text-lg mb-8 max-w-2xl mx-auto">
               Join hundreds of brands already using BlogSpeeds to dominate search rankings.
             </p>
-            <button className="bg-white text-black px-12 py-5 rounded-full font-bold text-lg hover:bg-white/90 transition flex items-center gap-3 mx-auto group">
+            <button 
+              onClick={() => setShowTrialModal(true)}
+              className="bg-white text-black px-12 py-5 rounded-full font-bold text-lg hover:bg-white/90 transition flex items-center gap-3 mx-auto group"
+            >
               Start Your Free Trial
               <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition" />
             </button>
@@ -917,6 +939,24 @@ const BlogSpeedsLanding = () => {
           </div>
         </footer>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-[60] rounded-xl px-4 py-3 text-sm shadow-lg border backdrop-blur-xl
+          ${toast.type === "error"
+            ? "bg-red-500/20 text-red-200 border-red-500/30"
+            : "bg-green-500/20 text-green-200 border-green-500/30"}`}>
+          {toast.message}
+        </div>
+      )}
+
+      {/* Start Trial Modal */}
+      <StartTrialModal
+        isOpen={showTrialModal}
+        onClose={() => setShowTrialModal(false)}
+        onSuccess={handleTrialSuccess}
+        onError={handleTrialError}
+      />
 
       <style jsx>{`
         @keyframes fade-in {

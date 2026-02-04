@@ -5,15 +5,76 @@ import Icon from "./Icon.jsx";
 
 const CATEGORIES = [
   { id: 'all', name: 'All Topics', icon: '🌐' },
-  { id: 'business', name: 'Business', icon: '💼' },
-  { id: 'design', name: 'Design', icon: '🎨' },
-  { id: 'product', name: 'Product', icon: '📦' },
-  { id: 'engineering', name: 'Engineering', icon: '⚙️' },
-  { id: 'marketing', name: 'Marketing', icon: '📈' },
-  { id: 'sci-tech', name: 'Technology', icon: '💻' },
+  { id: 'autos_and_vehicles', name: 'Autos and Vehicles', icon: '🚗' },
+  { id: 'beauty_and_fashion', name: 'Beauty and Fashion', icon: '💄' },
+  { id: 'business_and_finance', name: 'Business and Finance', icon: '💼' },
+  { id: 'entertainment', name: 'Entertainment', icon: '🎬' },
+  { id: 'food_and_drink', name: 'Food and Drink', icon: '🍔' },
+  { id: 'games', name: 'Games', icon: '🎮' },
   { id: 'health', name: 'Health', icon: '🏥' },
-  { id: 'entertainment', name: 'Entertainment', icon: '🎬' }
+  { id: 'hobbies_and_leisure', name: 'Hobbies and Leisure', icon: '🎨' },
+  { id: 'jobs_and_education', name: 'Jobs and Education', icon: '📚' },
+  { id: 'law_and_government', name: 'Law and Government', icon: '⚖️' },
+  { id: 'pets_and_animals', name: 'Pets and Animals', icon: '🐾' },
+  { id: 'politics', name: 'Politics', icon: '🗳️' },
+  { id: 'science', name: 'Science', icon: '🔬' },
+  { id: 'shopping', name: 'Shopping', icon: '🛒' },
+  { id: 'sports', name: 'Sports', icon: '⚽' },
+  { id: 'technology', name: 'Technology', icon: '💻' },
+  { id: 'travel_and_transportation', name: 'Travel and Transportation', icon: '✈️' },
+  { id: 'climate', name: 'Climate', icon: '🌍' }
 ];
+
+// Location data - simplified list for common countries
+const COUNTRIES = [
+  { code: 'IN', name: 'India' },
+  { code: 'US', name: 'United States' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'CN', name: 'China' },
+  { code: 'BR', name: 'Brazil' },
+  { code: 'MX', name: 'Mexico' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'SE', name: 'Sweden' },
+  { code: 'NO', name: 'Norway' },
+  { code: 'DK', name: 'Denmark' },
+  { code: 'FI', name: 'Finland' },
+  { code: 'PL', name: 'Poland' },
+  { code: 'SG', name: 'Singapore' },
+  { code: 'AE', name: 'United Arab Emirates' },
+  { code: 'ZA', name: 'South Africa' },
+  { code: 'NZ', name: 'New Zealand' },
+  { code: 'IE', name: 'Ireland' },
+  { code: 'CH', name: 'Switzerland' }
+];
+
+// Load location from localStorage
+const loadLocation = () => {
+  try {
+    const saved = localStorage.getItem('trendsLocation');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error('Error loading location:', e);
+  }
+  return { country: null, state: null, city: null };
+};
+
+// Save location to localStorage
+const saveLocation = (location) => {
+  try {
+    localStorage.setItem('trendsLocation', JSON.stringify(location));
+  } catch (e) {
+    console.error('Error saving location:', e);
+  }
+};
 
 export default function TrendingTopics({ onSelectTrend, onClose }) {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -36,6 +97,26 @@ export default function TrendingTopics({ onSelectTrend, onClose }) {
   const [interestError, setInterestError] = useState("");
   const [timeRange, setTimeRange] = useState('today 12-m');
 
+  // 🔥 NEW: Location state
+  const [location, setLocation] = useState(loadLocation);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [locationForm, setLocationForm] = useState({
+    country: '',
+    state: '',
+    city: ''
+  });
+
+  // Initialize location form when modal opens
+  useEffect(() => {
+    if (showLocationModal) {
+      setLocationForm({
+        country: location.country || '',
+        state: location.state || '',
+        city: location.city || ''
+      });
+    }
+  }, [showLocationModal, location]);
+
   const TIME_RANGES = [
     { value: 'now 1-d', label: 'Past Day' },
     { value: 'now 7-d', label: 'Past 7 Days' },
@@ -47,27 +128,41 @@ export default function TrendingTopics({ onSelectTrend, onClose }) {
 
   useEffect(() => {
     fetchTrendingTopics(selectedCategory);
-  }, [selectedCategory]);
+  }, [selectedCategory, location]);
 
   useEffect(() => {
     if (showInterestOverTime && interestKeyword) {
       fetchInterestData();
     }
-  }, [interestKeyword, timeRange, showInterestOverTime]);
+  }, [interestKeyword, timeRange, showInterestOverTime, location]);
 
   const fetchTrendingTopics = async (category) => {
+    // Check if location is set
+    if (!location.country) {
+      setError("Please set a location to view trending topics");
+      setTopics([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError("");
     
     try {
-      const res = await api.get(`/trends/discover?category=${category}&geo=US`);
+      // Build query params with location
+      const params = new URLSearchParams({ category });
+      params.append('country', location.country);
+      if (location.state) params.append('state', location.state);
+      if (location.city) params.append('city', location.city);
+      
+      const res = await api.get(`/trends/discover?${params.toString()}`);
       
       if (res.data.success) {
         setTopics(res.data.topics || []);
       }
     } catch (err) {
       console.error("Fetch Trending Topics Error:", err);
-      setError(err.response?.data?.message || "Failed to fetch trending topics");
+      setError(err.response?.data?.error || err.response?.data?.message || "Failed to fetch trending topics");
     } finally {
       setLoading(false);
     }
@@ -82,8 +177,16 @@ export default function TrendingTopics({ onSelectTrend, onClose }) {
     setError("");
 
     try {
+      // Build query params with location
+      const params = new URLSearchParams({ keyword: topic.keyword });
+      if (location.country) {
+        params.append('country', location.country);
+        if (location.state) params.append('state', location.state);
+        if (location.city) params.append('city', location.city);
+      }
+      
       // Fetch related queries for this trending topic
-      const res = await api.get(`/trends/related-queries?keyword=${encodeURIComponent(topic.keyword)}&geo=US`);
+      const res = await api.get(`/trends/related-queries?${params.toString()}`);
       
       if (res.data.success) {
         // Combine rising and top queries, prioritize rising
@@ -117,7 +220,6 @@ export default function TrendingTopics({ onSelectTrend, onClose }) {
         input: relatedQuery.query,              // Selected related query
         trendingTopic: selectedTopic.keyword,   // 🔥 NEW: Original trending topic
         useRelatedQueries: true,
-        geo: "US"
       });
 
       if (res.data.success) {
@@ -170,13 +272,17 @@ export default function TrendingTopics({ onSelectTrend, onClose }) {
     setInterestError("");
     
     try {
-      const res = await api.get('/trends/interest', {
-        params: {
-          keyword: interestKeyword,
-          geo: 'US',
-          date: timeRange
-        }
-      });
+      const params = {
+        keyword: interestKeyword,
+        date: timeRange
+      };
+      if (location.country) {
+        params.country = location.country;
+        if (location.state) params.state = location.state;
+        if (location.city) params.city = location.city;
+      }
+      
+      const res = await api.get('/trends/interest', { params });
       
       if (res.data.success) {
         setInterestData(res.data.data);
@@ -186,6 +292,47 @@ export default function TrendingTopics({ onSelectTrend, onClose }) {
       setInterestError(err.response?.data?.message || "Failed to fetch interest data");
     } finally {
       setLoadingInterest(false);
+    }
+  };
+
+  // 🔥 NEW: Location management functions
+  const handleLocationApply = () => {
+    if (!locationForm.country) {
+      setError("Country is required");
+      return;
+    }
+    
+    const newLocation = {
+      country: locationForm.country,
+      state: locationForm.state || null,
+      city: locationForm.city || null
+    };
+    
+    setLocation(newLocation);
+    saveLocation(newLocation);
+    setShowLocationModal(false);
+    
+    // Refresh topics with new location
+    fetchTrendingTopics(selectedCategory);
+  };
+
+  const handleLocationCancel = () => {
+    setShowLocationModal(false);
+  };
+
+  const getLocationLabel = () => {
+    if (!location.country) {
+      return "Worldwide trends (select location)";
+    }
+    
+    const countryName = COUNTRIES.find(c => c.code === location.country)?.name || location.country;
+    
+    if (location.city && location.state) {
+      return `📍 ${location.city}, ${location.state}, ${countryName}`;
+    } else if (location.state) {
+      return `📍 ${location.state}, ${countryName}`;
+    } else {
+      return `📍 ${countryName}`;
     }
   };
 
@@ -238,19 +385,28 @@ export default function TrendingTopics({ onSelectTrend, onClose }) {
                     ? interestKeyword
                     : showRelatedQueries 
                       ? `Related to: ${selectedTopic?.keyword}`
-                      : 'Real-time data from Google Trends'
+                      : getLocationLabel()
                   }
                 </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="text-white/60 hover:text-white transition"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowLocationModal(true)}
+                className="px-3 py-1.5 text-sm font-medium text-white/70 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition"
+                title="Set Location"
+              >
+                Set Location 🌍
+              </button>
+              <button
+                onClick={onClose}
+                className="text-white/60 hover:text-white transition"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Category Filter - Only show when not viewing related queries or interest */}
@@ -681,6 +837,90 @@ export default function TrendingTopics({ onSelectTrend, onClose }) {
           </div>
         </div>
       </div>
+
+      {/* Location Selector Modal */}
+      {showLocationModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md bg-black/80 backdrop-blur-xl rounded-2xl border border-white/10 shadow-xl overflow-hidden">
+            <div className="px-6 py-5 border-b border-white/10">
+              <h3 className="text-lg font-semibold text-white">Set Location</h3>
+              <p className="text-sm text-white/50 mt-1">Select your location for localized trends</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Country */}
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-2">
+                  Country <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={locationForm.country}
+                  onChange={(e) => {
+                    setLocationForm({
+                      country: e.target.value,
+                      state: '',
+                      city: ''
+                    });
+                  }}
+                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">Select a country</option>
+                  {COUNTRIES.map(country => (
+                    <option key={country.code} value={country.code} className="bg-black">
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* State */}
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-2">
+                  State / Region <span className="text-white/40 text-xs">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={locationForm.state}
+                  onChange={(e) => setLocationForm({ ...locationForm, state: e.target.value })}
+                  placeholder="e.g., Karnataka, California"
+                  disabled={!locationForm.country}
+                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+
+              {/* City */}
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-2">
+                  City / Location <span className="text-white/40 text-xs">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={locationForm.city}
+                  onChange={(e) => setLocationForm({ ...locationForm, city: e.target.value })}
+                  placeholder="e.g., Bangalore, New York"
+                  disabled={!locationForm.state}
+                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-white/10 flex items-center justify-end gap-3">
+              <Button
+                variant="ghost"
+                onClick={handleLocationCancel}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleLocationApply}
+                disabled={!locationForm.country}
+              >
+                Apply Location
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

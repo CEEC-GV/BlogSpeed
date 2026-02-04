@@ -9,35 +9,45 @@ const getSerpApiKey = () => {
   return key;
 };
 
-
 const TREND_CATEGORIES = {
   all: '',
-  business: 'b',
-  entertainment: 'e',
-  health: 'm',
-  'sci-tech': 't',
-  sports: 's',
-  design: 't', 
-  product: 'b', 
-  engineering: 't', 
-  marketing: 'b', 
-  research: 't' 
+  autos_and_vehicles: 1,
+  beauty_and_fashion: 2,
+  business_and_finance: 3,
+  entertainment: 4,
+  food_and_drink: 5,
+  games: 6,
+  health: 7,
+  hobbies_and_leisure: 8,
+  jobs_and_education: 9,
+  law_and_government: 10,
+  pets_and_animals: 13,
+  politics: 14,
+  science: 15,
+  shopping: 16,
+  sports: 17,
+  technology: 18,
+  travel_and_transportation: 19,
+  climate: 20
 };
-
 /**
  * Get trending searches by category
  * Returns top 10-20 trending topics
  */
 export const getTrendingByCategory = asyncHandler(async (req, res) => {
   try {
-    const { category = 'all', geo = 'US', hours = '' } = req.query;
+    const { category = 'all', country, state, city, hours = '' } = req.query;
 
-    const categoryId = TREND_CATEGORIES[category.toLowerCase()] || '';
+    // Use country for geo, default to US if not provided (for backward compatibility)
+    const geo = country || 'US';
+
+    const categoryId = TREND_CATEGORIES[category.toLowerCase()] ?? '';
+
 
     const response = await getJson({
       engine: 'google_trends_trending_now',
       geo,
-      category_id: categoryId,
+      category_id: categoryId === '' ? undefined : categoryId,
       hours,
       api_key: getSerpApiKey()
     });
@@ -76,7 +86,7 @@ export const getTrendingByCategory = asyncHandler(async (req, res) => {
  */
 export const getRelatedTopics = asyncHandler(async (req, res) => {
   try {
-    const { keyword, geo = 'US', date = 'today 12-m' } = req.query;
+    const { keyword, country, state, city, date = 'today 12-m' } = req.query;
 
     if (!keyword) {
       return res.status(400).json({
@@ -84,6 +94,9 @@ export const getRelatedTopics = asyncHandler(async (req, res) => {
         error: 'Keyword is required'
       });
     }
+
+    // Use country for geo, default to US if not provided (for backward compatibility)
+    const geo = country || 'US';
 
     const response = await getJson({
       engine: 'google_trends',
@@ -120,7 +133,7 @@ export const getRelatedTopics = asyncHandler(async (req, res) => {
  */
 export const getRelatedQueries = asyncHandler(async (req, res) => {
   try {
-    const { keyword, geo = 'US', date = 'today 12-m' } = req.query;
+    const { keyword, country, state, city, date = 'today 12-m' } = req.query;
 
     if (!keyword) {
       return res.status(400).json({
@@ -128,6 +141,9 @@ export const getRelatedQueries = asyncHandler(async (req, res) => {
         error: 'Keyword is required'
       });
     }
+
+    // Use country for geo, default to US if not provided (for backward compatibility)
+    const geo = country || 'US';
 
     const response = await getJson({
       engine: 'google_trends',
@@ -181,7 +197,7 @@ export const getRelatedQueries = asyncHandler(async (req, res) => {
  */
 export const getInterestOverTime = asyncHandler(async (req, res) => {
   try {
-    const { keyword, geo = 'US', date = 'today 12-m' } = req.query;
+    const { keyword, country, state, city, date = 'today 12-m' } = req.query;
 
     if (!keyword) {
       return res.status(400).json({
@@ -189,6 +205,9 @@ export const getInterestOverTime = asyncHandler(async (req, res) => {
         error: 'Keyword is required'
       });
     }
+
+    // Use country for geo, default to US if not provided (for backward compatibility)
+    const geo = country || 'US';
 
     const response = await getJson({
       engine: 'google_trends',
@@ -219,15 +238,28 @@ export const getInterestOverTime = asyncHandler(async (req, res) => {
  */
 export const discoverBlogTopics = asyncHandler(async (req, res) => {
   try {
-    const { category = 'all', geo = 'US' } = req.query;
+    const { category = 'all', country, state, city } = req.query;
 
-    const categoryId = TREND_CATEGORIES[category.toLowerCase()] || '';
+    // ❌ REMOVED: Auto geo-detection
+    // ✅ REQUIRED: Country must be provided by user
+    if (!country) {
+      return res.status(400).json({
+        success: false,
+        error: 'Country is required to fetch localized trends'
+      });
+    }
+
+    const categoryId = TREND_CATEGORIES[category.toLowerCase()] ?? '';
+
+    // Use country code for SerpAPI geo parameter
+    // State and city are for logging/future filtering only
+    const geo = country;
 
     // Fetch trending searches
     const trendsResponse = await getJson({
       engine: 'google_trends_trending_now',
       geo,
-      category_id: categoryId,
+      category_id: categoryId === '' ? undefined : categoryId,
       api_key: getSerpApiKey()
     });
 
@@ -237,19 +269,37 @@ export const discoverBlogTopics = asyncHandler(async (req, res) => {
     console.log('Trends Response:', trendingSearches);
     
     // Structure trending topics with SEO potential
-    const topics = trendingSearches.slice(0, 15).map(trend => ({
-      keyword: trend.query || trend.title,
-      traffic: trend.increase_percentage || 'N/A',
-      searchVolume: trend.search_volume || 'N/A',
-      relatedQueries: trend.related_queries || [],
-      newsArticles: trend.articles?.length || 0,
-      trendScore: calculateTrendScore(trend)
-    }));
+    const topics = trendingSearches
+      .map(trend => {
+        const baseScore = calculateTrendScore(trend);
+
+        return {
+          keyword: trend.query || trend.title,
+          traffic: trend.increase_percentage || 'N/A',
+          searchVolume: trend.search_volume || 'N/A',
+          relatedQueries: trend.related_queries || [],
+          newsArticles: trend.articles?.length || 0,
+          trendScore: baseScore
+        };
+      })
+      .sort((a, b) => b.trendScore - a.trendScore)
+      .slice(0, 15);
+  console.log(category, topics.slice(0, 5).map(t => t.keyword));
+
+    // Build location label for response
+    let locationLabel = country;
+    if (state) {
+      locationLabel = state + ', ' + locationLabel;
+    }
+    if (city) {
+      locationLabel = city + ', ' + locationLabel;
+    }
 
     res.json({
       success: true,
       category,
-      geo,
+      geo: country,
+      locationLabel,
       topics,
       totalTopics: topics.length,
       recommendation: topics[0] ? `"${topics[0].keyword}" is trending with high search volume` : 'No trending topics found'
@@ -286,7 +336,7 @@ function calculateTrendScore(trend) {
  */
 export const generateTitlesFromTrend = asyncHandler(async (req, res) => {
   try {
-    const { keyword, geo = 'US' } = req.body;
+    const { keyword, country, state, city } = req.body;
 
     if (!keyword) {
       return res.status(400).json({
@@ -294,6 +344,9 @@ export const generateTitlesFromTrend = asyncHandler(async (req, res) => {
         error: 'Keyword is required'
       });
     }
+
+    // Use country for geo, default to US if not provided (for backward compatibility)
+    const geo = country || 'US';
 
     // Fetch related queries
     const relatedQueriesResponse = await getJson({

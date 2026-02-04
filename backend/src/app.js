@@ -11,6 +11,8 @@ import adminSeoRoutes from "./routes/adminSeoRoutes.js";
 import trendsRoutes from "./routes/trendsRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 import subscriberRoutes from "./routes/subscriberRoutes.js";
+import contactRoutes from "./routes/contactRoutes.js";
+import settingsRoutes from "./routes/settingsRoutes.js"; 
 
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
@@ -48,6 +50,8 @@ app.use("/api/admin", adminSeoRoutes);
 app.use("/api/trends", trendsRoutes);
 app.use("/api/admin/analytics", analyticsRoutes);
 app.use("/api/subscribers", subscriberRoutes);
+app.use("/api/contact", contactRoutes);
+app.use("/api/settings", settingsRoutes); 
 
 app.use(notFound);
 app.use(errorHandler);
