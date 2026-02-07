@@ -214,7 +214,9 @@ export const createBlog = asyncHandler(async (req, res) => {
   const content = req.body.content || "";
   const excerpt = sanitizeText(buildExcerpt(content, req.body.excerpt));
   const coverImage = sanitizeUrl(req.body.coverImage || "");
-  const category = sanitizeText(req.body.category || "");
+  const category = sanitizeText(req.body.category || "")
+  .toLowerCase()
+  .trim();
   const author = sanitizeText(req.body.author || "");
   const status = req.body.status || "Draft";
 
@@ -275,7 +277,9 @@ export const updateBlog = asyncHandler(async (req, res) => {
   const content = req.body.content ?? blog.content;
   const excerpt = sanitizeText(buildExcerpt(content, req.body.excerpt ?? blog.excerpt));
   const coverImage = sanitizeUrl(req.body.coverImage ?? blog.coverImage);
-  const category = sanitizeText(req.body.category ?? blog.category);
+  const category = sanitizeText(req.body.category ?? blog.category)
+  .toLowerCase()
+  .trim();
   const author = sanitizeText(req.body.author ?? blog.author);
   const status = req.body.status ?? blog.status;
 

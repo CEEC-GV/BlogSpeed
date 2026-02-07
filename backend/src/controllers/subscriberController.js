@@ -6,15 +6,16 @@ import crypto from 'crypto';
 // Configure email transporter (use your email service)
 const createEmailTransporter = () => {
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: process.env.EMAIL_PORT || 587,
-    secure: false,
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT),
+    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for 587
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
     }
   });
 };
+
 
 /**
  * @desc    Get all subscribers
@@ -191,8 +192,8 @@ export const updateSubscriber = asyncHandler(async (req, res) => {
   if (name) subscriber.name = name;
   if (email) subscriber.email = email;
   
-  if (status && status !== subscriber.status) {
-    subscriber.status = status;
+  if (status && status.toLowerCase() !== subscriber.status) {
+    subscriber.status = status.toLowerCase();
     if (status === 'unsubscribed') {
       subscriber.unsubscribedAt = Date.now();
     } else if (status === 'subscribed') {
@@ -333,6 +334,7 @@ export const bulkImportSubscribers = asyncHandler(async (req, res) => {
 export const sendBroadcastEmail = asyncHandler(async (req, res) => {
   const { subject, htmlContent, textContent } = req.body;
 
+
   if (!subject || !htmlContent) {
     return res.status(400).json({
       success: false,
@@ -380,7 +382,7 @@ export const sendBroadcastEmail = asyncHandler(async (req, res) => {
           `;
 
           await transporter.sendMail({
-            from: `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_USER}>`,
+            from: `"BlogSpeed" <${process.env.SMTP_USER}>`,
             to: subscriber.email,
             subject,
             text: textContent || htmlContent.replace(/<[^>]*>/g, ''),

@@ -33,6 +33,7 @@ router.use(protect);
 router.get("/", listBlogs);
 router.post("/", blogRules, validate, createBlog);
 
+
 router.get("/:id", getBlog);
 router.put("/:id", blogRules, validate, updateBlog);
 router.delete("/:id", deleteBlog);

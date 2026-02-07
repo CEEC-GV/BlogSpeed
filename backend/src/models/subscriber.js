@@ -73,7 +73,9 @@ subscriberSchema.methods.generateUnsubscribeToken = function () {
 
 // Static method to get active subscribers
 subscriberSchema.statics.getActiveSubscribers = function () {
-  return this.find({ status: 'subscribed' });
+  return this.find({
+    status: { $regex: /^subscribed$/i }
+  });
 };
 
 // Static method to get subscriber count by status

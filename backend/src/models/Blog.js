@@ -50,3 +50,4 @@ blogSchema.pre("validate", function (next) {
 });
 
 export default mongoose.model("Blog", blogSchema);
+

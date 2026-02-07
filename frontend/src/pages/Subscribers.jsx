@@ -16,6 +16,7 @@ export default function SubscribersPage() {
   const [dateFilter, setDateFilter] = useState("");
   const [toast, setToast] = useState(null);
   const [autoBlogEmail, setAutoBlogEmail] = useState(false);
+  const [showBroadcastConfirm, setShowBroadcastConfirm] = useState(false);
 
   // Broadcast email state
   const [showBroadcast, setShowBroadcast] = useState(false);
@@ -73,6 +74,9 @@ export default function SubscribersPage() {
     })
     .catch(() => {});
 }, []);
+useEffect(() => {
+  console.log("Confirm modal:", showBroadcastConfirm);
+}, [showBroadcastConfirm]);
 
 
   const handleDelete = async () => {
@@ -108,25 +112,27 @@ export default function SubscribersPage() {
   };
 
   const handleBroadcast = async () => {
-    if (!broadcastData.subject || !broadcastData.htmlContent) {
-      showToast("Please fill in all fields", "error");
-      return;
-    }
+  if (!broadcastData.subject || !broadcastData.htmlContent) {
+    showToast("Please fill in all fields", "error");
+    return;
+  }
 
-    if (!confirm(`Send email to ${stats?.subscribed || 0} subscribers?`)) return;
+  setSending(true);
+  try {
+    const response = await api.post('/subscribers/broadcast', broadcastData);
+    showToast(response.data.message);
+    setShowBroadcast(false);
+    setBroadcastData({ subject: '', htmlContent: '' });
+  } catch (error) {
+    showToast(
+      error.response?.data?.error || "Failed to send broadcast email",
+      "error"
+    );
+  } finally {
+    setSending(false);
+  }
+};
 
-    setSending(true);
-    try {
-      const response = await api.post('/subscribers/broadcast', broadcastData);
-      showToast(response.data.message);
-      setShowBroadcast(false);
-      setBroadcastData({ subject: '', htmlContent: '' });
-    } catch (error) {
-      showToast(error.response?.data?.error || "Failed to send broadcast email", "error");
-    } finally {
-      setSending(false);
-    }
-  };
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -415,6 +421,51 @@ export default function SubscribersPage() {
           </div>
         </div>
       )}
+      {/* Broadcast Confirmation Modal */}
+{showBroadcastConfirm && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-black/80 backdrop-blur-xl p-6 shadow-xl">
+      <h3 className="text-lg font-semibold text-white">
+        Send broadcast email?
+      </h3>
+      <p className="mt-2 text-sm text-white/60">
+        This email will be sent to {stats?.subscribed || 0} active subscribers.
+      </p>
+
+      <div className="mt-6 flex justify-end gap-3">
+        <button
+          onClick={() => setShowBroadcastConfirm(false)}
+          disabled={sending}
+          className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white transition"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={async () => {
+            setShowBroadcastConfirm(false);
+            await handleBroadcast();
+          }}
+          disabled={sending}
+          className="rounded-lg bg-purple-600 px-4 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50 transition flex items-center gap-2"
+        >
+          {sending ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></div>
+              Sending...
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              Send
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 
       {/* Broadcast Email Modal */}
       {showBroadcast && (
@@ -471,22 +522,18 @@ export default function SubscribersPage() {
               </button>
 
               <button
-                onClick={handleBroadcast}
-                disabled={sending}
-                className="rounded-lg bg-purple-600 px-4 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-              >
-                {sending ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></div>
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Send to All Subscribers
-                  </>
-                )}
-              </button>
+  onClick={() => {
+    setShowBroadcast(false);      // 👈 close editor
+    setShowBroadcastConfirm(true); // 👈 then open confirm
+  }}
+  disabled={sending}
+  className="rounded-lg bg-purple-600 px-4 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50 transition flex items-center gap-2"
+>
+  <Send className="w-4 h-4" />
+  Send to All Subscribers
+</button>
+
+
             </div>
           </div>
         </div>
