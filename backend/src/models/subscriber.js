@@ -3,6 +3,7 @@ import crypto from 'crypto';
 
 const subscriberSchema = new mongoose.Schema(
   {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name: {
       type: String,
       required: [true, 'Name is required'],
@@ -72,15 +73,19 @@ subscriberSchema.methods.generateUnsubscribeToken = function () {
 };
 
 // Static method to get active subscribers
-subscriberSchema.statics.getActiveSubscribers = function () {
+subscriberSchema.statics.getActiveSubscribers = function (userId) {
   return this.find({
-    status: { $regex: /^subscribed$/i }
+    user: userId,
+    status: 'subscribed'
   });
 };
 
 // Static method to get subscriber count by status
-subscriberSchema.statics.getSubscriberStats = async function () {
+subscriberSchema.statics.getSubscriberStats = async function (userId) {
   const stats = await this.aggregate([
+    {
+      $match: { user: new mongoose.Types.ObjectId(userId) }
+    },
     {
       $group: {
         _id: '$status',

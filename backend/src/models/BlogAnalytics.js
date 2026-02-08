@@ -9,6 +9,12 @@ const blogAnalyticsSchema = new mongoose.Schema(
       unique: true,
       index: true
     },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true
+    },  
 
     // Simple counters
     totalViews: { type: Number, default: 0 },

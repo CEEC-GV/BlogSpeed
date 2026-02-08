@@ -18,7 +18,7 @@ async function sendBlogNotificationEmails(blog) {
   try {
     // Step 2: Check settings
     console.log(`📧 [EMAIL FLOW] Step 2: Checking autoBlogEmail setting...`);
-    const settings = await Settings.findOne();
+    const settings = await Settings.findOne({ user: req.admin.id });
     
     if (!settings || settings.autoBlogEmail !== true) {
       console.log(`📧 [EMAIL FLOW] ⚠️  Auto blog email is disabled in settings. Skipping email notification.`);
@@ -28,7 +28,7 @@ async function sendBlogNotificationEmails(blog) {
 
     // Step 3: Fetch subscribers
     console.log(`📧 [EMAIL FLOW] Step 3: Fetching subscribed users...`);
-    const subscribers = await Subscriber.find({ status: "subscribed" });
+    const subscribers = await Subscriber.find({ status: "subscribed", user: req.admin.id });
     console.log(`📧 [EMAIL FLOW] Found ${subscribers.length} subscribed users`);
 
     if (subscribers.length === 0) {
@@ -126,7 +126,7 @@ const buildExcerpt = (content, excerpt) => {
 export const listBlogs = asyncHandler(async (req, res) => {
   const { includeAnalytics } = req.query;
   
-  const blogs = await Blog.find().sort({ createdAt: -1 });
+  const blogs = await Blog.find({ user: req.admin.id }).sort({ createdAt: -1 });
   
   // Optionally include analytics summary
   if (includeAnalytics === "true") {
@@ -134,7 +134,8 @@ export const listBlogs = asyncHandler(async (req, res) => {
     
     // Fetch analytics for all blogs
     const analyticsData = await BlogAnalytics.find({ 
-      blogId: { $in: blogIds } 
+      blogId: { $in: blogIds },
+      user: req.admin.id
     });
     
     // Create a map for quick lookup

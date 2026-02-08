@@ -1,5 +1,6 @@
 import { useState } from "react";
 import api from "../api/axios.js";
+import app_id from "../auth.txt?raw";
 
 export default function SubscribeForm() {
   const [formData, setFormData] = useState({
@@ -23,7 +24,7 @@ export default function SubscribeForm() {
     setMessage("");
 
     try {
-      const response = await api.post("subscribers/subscribe", {
+      const response = await api.post(`subscribers/subscribe/${app_id}`, {
         name: formData.name,
         email: formData.email,
         source: "website",

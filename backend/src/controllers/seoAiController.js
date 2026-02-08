@@ -337,21 +337,22 @@ export const generateMetaDescriptions = async (req, res) => {
       });
     }
 
-    // 🔥 IMPROVED: Changed to object format for consistency
-    const prompt = `Generate 5 meta descriptions for: "${title}"
+    // 🔥 SIMPLIFIED: Ask for array directly since that's what we need
+    const prompt = `Generate exactly 5 SEO-optimized meta descriptions for this article title:
 
-    REQUIREMENTS:
-    - EXACTLY 140-160 characters each
-    - Include main keyword from title
-    - Add call-to-action
-    - Be compelling and SEO-friendly
+"${title}"
 
-    Return ONLY valid JSON with this EXACT structure:
-    {
-      "metaDescriptions": ["desc1", "desc2", "desc3", "desc4", "desc5"]
-    }
+REQUIREMENTS:
+- Each description must be between 140-160 characters
+- Include the main keyword from the title
+- Include a call-to-action (Discover, Learn, Get, Find out, etc.)
+- Make them compelling and click-worthy
+- Each should have a unique angle
 
-    NO code blocks, NO explanations, ONLY the JSON object.`;
+Return ONLY a JSON array of 5 strings. No explanations, no markdown, no code blocks.
+
+Example format:
+["Description 1 here with CTA...", "Description 2 here with CTA...", "Description 3 here with CTA...", "Description 4 here with CTA...", "Description 5 here with CTA..."]`;
 
     let retryCount = 0;
     let metaDescriptions = [];
@@ -366,84 +367,125 @@ export const generateMetaDescriptions = async (req, res) => {
           generationConfig: { 
             maxOutputTokens: 1000, 
             temperature: 0.7,
-            // 🔥 REMOVED responseMimeType for better compatibility
           }
         });
 
         const aiText = response.response.candidates[0].content.parts[0].text;
+        console.log('🤖 Raw AI response:', aiText.substring(0, 200));
         
         // Clean up the response
         let jsonText = aiText.trim();
+        
+        // Remove markdown code blocks
         jsonText = jsonText.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '');
         
-        // Extract JSON object
+        // Remove any leading/trailing text before JSON
+        const firstBracket = jsonText.indexOf('[');
+        const lastBracket = jsonText.lastIndexOf(']');
         const firstBrace = jsonText.indexOf('{');
         const lastBrace = jsonText.lastIndexOf('}');
-        const firstBracket = jsonText.indexOf('[');
         
         let parsed;
         
-        // Try parsing as object first
-        if (firstBrace !== -1 && lastBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
-          jsonText = jsonText.substring(firstBrace, lastBrace + 1);
-          parsed = JSON.parse(jsonText);
-        } 
-        // Try parsing as array
-        else if (firstBracket !== -1) {
-          const lastBracket = jsonText.lastIndexOf(']');
+        // Try parsing as array first (preferred format)
+        if (firstBracket !== -1 && lastBracket !== -1 && 
+            (firstBrace === -1 || firstBracket < firstBrace)) {
           jsonText = jsonText.substring(firstBracket, lastBracket + 1);
+          console.log('📋 Parsing as array...');
           parsed = JSON.parse(jsonText);
+          
+          if (Array.isArray(parsed)) {
+            metaDescriptions = parsed;
+          } else {
+            throw new Error('Expected array but got object');
+          }
+        } 
+        // Fallback: Try parsing as object
+        else if (firstBrace !== -1 && lastBrace !== -1) {
+          jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+          console.log('📦 Parsing as object...');
+          parsed = JSON.parse(jsonText);
+          
+          if (parsed.metaDescriptions && Array.isArray(parsed.metaDescriptions)) {
+            metaDescriptions = parsed.metaDescriptions;
+          } else if (Array.isArray(parsed.descriptions)) {
+            metaDescriptions = parsed.descriptions;
+          } else if (typeof parsed === 'object') {
+            // Extract first array found in the object
+            const firstArray = Object.values(parsed).find(val => Array.isArray(val));
+            if (firstArray) {
+              metaDescriptions = firstArray;
+            } else {
+              throw new Error('No array found in object');
+            }
+          }
         } 
         else {
-          throw new Error('No valid JSON structure found');
-        }
-        
-        // Handle different response formats
-        if (Array.isArray(parsed)) {
-          metaDescriptions = parsed;
-        } else if (parsed.metaDescriptions && Array.isArray(parsed.metaDescriptions)) {
-          metaDescriptions = parsed.metaDescriptions;
-        } else if (typeof parsed === 'object') {
-          // Extract first array found
-          const firstArray = Object.values(parsed).find(val => Array.isArray(val));
-          metaDescriptions = firstArray || [];
+          throw new Error('No valid JSON structure found in response');
         }
 
         // Validate we got descriptions
-        if (!metaDescriptions.length) {
+        if (!Array.isArray(metaDescriptions) || metaDescriptions.length === 0) {
           throw new Error("No meta descriptions found in response");
         }
 
+        console.log(`📊 Found ${metaDescriptions.length} descriptions`);
+
         // Filter and validate descriptions
         const validDescriptions = metaDescriptions
-          .filter(desc => typeof desc === 'string' && desc.length >= 120 && desc.length <= 170);
+          .filter(desc => {
+            if (typeof desc !== 'string') return false;
+            const len = desc.length;
+            const isValid = len >= 130 && len <= 170; // Slightly relaxed range
+            if (!isValid) {
+              console.log(`⚠️ Rejected description (${len} chars): ${desc.substring(0, 50)}...`);
+            }
+            return isValid;
+          });
 
-        if (validDescriptions.length === 0) {
-          console.warn(`⚠️ No descriptions meet length requirements, retrying...`);
+        console.log(`✅ ${validDescriptions.length} valid descriptions`);
+
+        if (validDescriptions.length < 3) {
+          console.warn(`⚠️ Only ${validDescriptions.length} valid descriptions, need at least 3, retrying...`);
           metaDescriptions = [];
           retryCount++;
-          continue;
+          
+          if (retryCount <= maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
         }
 
+        // Take up to 5 valid descriptions
         metaDescriptions = validDescriptions.slice(0, 5);
         console.log('✅ Meta descriptions generated successfully');
 
       } catch (parseError) {
+        console.error(`❌ Parse error on attempt ${retryCount + 1}:`, parseError.message);
         retryCount++;
         
         if (retryCount > maxRetries) {
-          console.error("❌ All parsing attempts failed:", parseError.message);
+          console.error("❌ All parsing attempts failed");
           return res.status(502).json({
             success: false,
             message: "AI returned malformed content after multiple attempts. Please try again.",
             error: parseError.message,
-            suggestion: "Try simplifying the title"
+            suggestion: "Try simplifying the title or try again in a moment"
           });
         }
         
-        console.warn(`⚠️ Parse attempt ${retryCount} failed, retrying...`);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+        console.warn(`⚠️ Retrying in 1 second...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
+    }
+
+    // Final validation
+    if (metaDescriptions.length === 0) {
+      return res.status(502).json({
+        success: false,
+        message: "Could not generate valid meta descriptions after multiple attempts",
+        suggestion: "Please try again or use a different title"
+      });
     }
 
     const payload = {

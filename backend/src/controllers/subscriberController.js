@@ -24,12 +24,13 @@ const createEmailTransporter = () => {
  */
 export const getAllSubscribers = asyncHandler(async (req, res) => {
   const { status, page = 1, limit = 50, search } = req.query;
-
-  // Build query
-  const query = {};
+  
+  const query = { user: req.admin.id }; // Always filter by user
+  
   if (status) {
     query.status = status;
   }
+  
   if (search) {
     query.$or = [
       { name: { $regex: search, $options: 'i' } },
@@ -67,7 +68,7 @@ export const getAllSubscribers = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 export const getSubscriberStats = asyncHandler(async (req, res) => {
-  const stats = await Subscriber.getSubscriberStats();
+  const stats = await Subscriber.getSubscriberStats(req.admin.id);
 
   // Get recent subscribers (last 30 days)
   const thirtyDaysAgo = new Date();
@@ -75,7 +76,8 @@ export const getSubscriberStats = asyncHandler(async (req, res) => {
 
   const recentSubscribers = await Subscriber.countDocuments({
     subscribedAt: { $gte: thirtyDaysAgo },
-    status: 'subscribed'
+    status: 'subscribed',
+    user: req.admin.id
   });
 
   res.json({
@@ -93,7 +95,10 @@ export const getSubscriberStats = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 export const getSubscriber = asyncHandler(async (req, res) => {
-  const subscriber = await Subscriber.findById(req.params.id).select('-unsubscribeToken');
+  const subscriber = await Subscriber.findOne({ 
+    _id: req.params.id,
+    user: req.admin.id  // Ensure user can only access their own subscribers
+  }).select('-unsubscribeToken');
 
   if (!subscriber) {
     return res.status(404).json({
@@ -115,9 +120,13 @@ export const getSubscriber = asyncHandler(async (req, res) => {
  */
 export const createSubscriber = asyncHandler(async (req, res) => {
   const { name, email, source = 'website' } = req.body;
+  const app_id = req.params.app_id;
 
-  // Check if subscriber already exists
-  const existingSubscriber = await Subscriber.findOne({ email });
+  // Check if subscriber already exists for this user
+  const existingSubscriber = await Subscriber.findOne({ 
+    email,
+    user: app_id 
+  });
 
   if (existingSubscriber) {
     // If unsubscribed, resubscribe them
@@ -145,6 +154,7 @@ export const createSubscriber = asyncHandler(async (req, res) => {
     name,
     email,
     source,
+    user: app_id,
     metadata: {
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
@@ -179,7 +189,10 @@ export const createSubscriber = asyncHandler(async (req, res) => {
 export const updateSubscriber = asyncHandler(async (req, res) => {
   const { name, email, status } = req.body;
 
-  const subscriber = await Subscriber.findById(req.params.id);
+  const subscriber = await Subscriber.findOne({
+    _id: req.params.id,
+    user: req.admin.id  // Ensure user can only update their own subscribers
+  });
 
   if (!subscriber) {
     return res.status(404).json({
@@ -217,7 +230,10 @@ export const updateSubscriber = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 export const deleteSubscriber = asyncHandler(async (req, res) => {
-  const subscriber = await Subscriber.findById(req.params.id);
+  const subscriber = await Subscriber.findOne({
+    _id: req.params.id,
+    user: req.admin.id  // Ensure user can only delete their own subscribers
+  });
 
   if (!subscriber) {
     return res.status(404).json({
@@ -291,7 +307,10 @@ export const bulkImportSubscribers = asyncHandler(async (req, res) => {
 
   for (const sub of subscribers) {
     try {
-      const existing = await Subscriber.findOne({ email: sub.email });
+      const existing = await Subscriber.findOne({ 
+        email: sub.email,
+        user: req.admin.id  // Check within user's subscribers only
+      });
 
       if (existing) {
         if (existing.status === 'subscribed') {
@@ -308,7 +327,8 @@ export const bulkImportSubscribers = asyncHandler(async (req, res) => {
         const newSub = await Subscriber.create({
           name: sub.name,
           email: sub.email,
-          source: 'import'
+          source: 'import',
+          user: req.admin.id
         });
         newSub.generateUnsubscribeToken();
         await newSub.save();
@@ -332,85 +352,146 @@ export const bulkImportSubscribers = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 export const sendBroadcastEmail = asyncHandler(async (req, res) => {
-  const { subject, htmlContent, textContent } = req.body;
+  try {
+    const { subject, htmlContent, textContent } = req.body;
 
-
-  if (!subject || !htmlContent) {
-    return res.status(400).json({
-      success: false,
-      error: 'Subject and HTML content are required'
-    });
-  }
-
-  // Get all active subscribers
-  const subscribers = await Subscriber.getActiveSubscribers();
-
-  if (subscribers.length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'No active subscribers found'
-    });
-  }
-
-  const transporter = createEmailTransporter();
-  const results = {
-    sent: 0,
-    failed: 0,
-    errors: []
-  };
-
-  // Send emails in batches to avoid overwhelming the SMTP server
-  const batchSize = 50;
-  for (let i = 0; i < subscribers.length; i += batchSize) {
-    const batch = subscribers.slice(i, i + batchSize);
-    
-    await Promise.all(
-      batch.map(async (subscriber) => {
-        try {
-          // Create unsubscribe link
-          const unsubscribeUrl = `${process.env.FRONTEND_URL}/unsubscribe/${subscriber.unsubscribeToken}`;
-          
-          // Add unsubscribe link to email
-          const emailHtml = `
-            ${htmlContent}
-            <br><br>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-            <p style="font-size: 12px; color: #999; text-align: center;">
-              You're receiving this email because you subscribed to our newsletter.<br>
-              <a href="${unsubscribeUrl}" style="color: #999;">Unsubscribe</a> from future emails.
-            </p>
-          `;
-
-          await transporter.sendMail({
-            from: `"BlogSpeed" <${process.env.SMTP_USER}>`,
-            to: subscriber.email,
-            subject,
-            text: textContent || htmlContent.replace(/<[^>]*>/g, ''),
-            html: emailHtml
-          });
-
-          results.sent++;
-        } catch (error) {
-          results.failed++;
-          results.errors.push({
-            email: subscriber.email,
-            error: error.message
-          });
-        }
-      })
-    );
-
-    // Add delay between batches (1 second)
-    if (i + batchSize < subscribers.length) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    if (!subject || !htmlContent) {
+      return res.status(400).json({
+        success: false,
+        error: 'Subject and HTML content are required'
+      });
     }
-  }
 
-  res.json({
-    success: true,
-    message: `Broadcast email sent to ${results.sent} subscribers`,
-    data: results
-  });
+    // Get all active subscribers for this user
+    const subscribers = await Subscriber.getActiveSubscribers(req.admin.id);
+
+    if (subscribers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No active subscribers found'
+      });
+    }
+
+    // Validate email configuration
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      return res.status(500).json({
+        success: false,
+        error: 'Email service not configured. Please contact administrator.'
+      });
+    }
+
+    let transporter;
+    try {
+      transporter = createEmailTransporter();
+      // Verify transporter configuration
+      await transporter.verify();
+    } catch (transporterError) {
+      console.error('Email transporter error:', transporterError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to initialize email service',
+        message: transporterError.message
+      });
+    }
+
+    const results = {
+      sent: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // Send emails in batches to avoid overwhelming the SMTP server
+    const batchSize = 50;
+    
+    try {
+      for (let i = 0; i < subscribers.length; i += batchSize) {
+        const batch = subscribers.slice(i, i + batchSize);
+        
+        console.log(`📧 Sending batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(subscribers.length / batchSize)} (${batch.length} emails)...`);
+
+        await Promise.all(
+          batch.map(async (subscriber) => {
+            try {
+              // Validate subscriber has required fields
+              if (!subscriber.email || !subscriber.unsubscribeToken) {
+                throw new Error('Invalid subscriber data');
+              }
+
+              // Create unsubscribe link
+              const unsubscribeUrl = `${process.env.FRONTEND_URL}/unsubscribe/${subscriber.unsubscribeToken}`;
+
+              // Add unsubscribe link to email
+              const emailHtml = `
+                ${htmlContent}
+                <br><br>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="font-size: 12px; color: #999; text-align: center;">
+                  You're receiving this email because you subscribed to our newsletter.<br>
+                  <a href="${unsubscribeUrl}" style="color: #999;">Unsubscribe</a> from future emails.
+                </p>
+              `;
+
+              await transporter.sendMail({
+                from: `"BlogSpeed" <${process.env.SMTP_USER}>`,
+                to: subscriber.email,
+                subject,
+                text: textContent || htmlContent.replace(/<[^>]*>/g, ''),
+                html: emailHtml
+              });
+
+              results.sent++;
+              console.log(`✅ Sent to: ${subscriber.email}`);
+              
+            } catch (emailError) {
+              results.failed++;
+              results.errors.push({
+                email: subscriber.email,
+                error: emailError.message
+              });
+              console.error(`❌ Failed to send to ${subscriber.email}:`, emailError.message);
+            }
+          })
+        );
+
+        // Add delay between batches (1 second)
+        if (i + batchSize < subscribers.length) {
+          console.log('⏳ Waiting 1 second before next batch...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      console.log(`✅ Broadcast complete: ${results.sent} sent, ${results.failed} failed`);
+
+      res.json({
+        success: true,
+        message: `Broadcast email sent to ${results.sent} subscribers`,
+        data: results
+      });
+
+    } catch (batchError) {
+      console.error('Batch processing error:', batchError);
+      
+      // Return partial results if some emails were sent
+      if (results.sent > 0) {
+        return res.status(207).json({ // 207 Multi-Status
+          success: false,
+          message: `Broadcast partially completed. ${results.sent} sent, ${results.failed} failed`,
+          data: results,
+          error: batchError.message
+        });
+      }
+      
+      throw batchError; // Re-throw if no emails were sent
+    }
+
+  } catch (error) {
+    console.error('Broadcast email error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to send broadcast email',
+      message: error.message
+    });
+  }
 });
 
 /**
@@ -421,7 +502,7 @@ async function sendWelcomeEmail(subscriber) {
   const unsubscribeUrl = `${process.env.FRONTEND_URL}/unsubscribe/${subscriber.unsubscribeToken}`;
 
   await transporter.sendMail({
-    from: `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_USER}>`,
+    from: `"BlogSpeed" <${process.env.SMTP_USER}>`,
     to: subscriber.email,
     subject: 'Welcome! You\'re now subscribed',
     html: `

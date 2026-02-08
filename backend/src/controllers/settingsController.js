@@ -2,10 +2,10 @@ import Settings from "../models/Settings.js";
 
 // GET settings
 export const getSettings = async (req, res) => {
-  let settings = await Settings.findOne();
+  let settings = await Settings.findOne({ user: req.admin.id });
 
   if (!settings) {
-    settings = await Settings.create({});
+    settings = await Settings.create({ user: req.admin.id });
   }
 
   res.json({
@@ -18,9 +18,9 @@ export const getSettings = async (req, res) => {
 export const updateSettings = async (req, res) => {
   const { autoBlogEmail } = req.body;
 
-  let settings = await Settings.findOne();
+  let settings = await Settings.findOne({ user: req.admin.id });
   if (!settings) {
-    settings = await Settings.create({});
+    settings = await Settings.create({ user: req.admin.id });
   }
 
   settings.autoBlogEmail = autoBlogEmail;

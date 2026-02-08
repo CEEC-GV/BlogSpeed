@@ -216,7 +216,7 @@ export const getAnalytics = asyncHandler(async (req, res) => {
  * GET /api/admin/analytics/overview
  */
 export const getOverview = asyncHandler(async (req, res) => {
-  const analytics = await BlogAnalytics.find()
+  const analytics = await BlogAnalytics.find({user: req.admin.id})
     .populate("blogId", "title slug category status")
     .sort({ totalViews: -1 });
 
@@ -284,7 +284,7 @@ export const getOverview = asyncHandler(async (req, res) => {
  * GET /api/admin/analytics/blogs
  */
 export const listBlogsWithAnalytics = asyncHandler(async (req, res) => {
-  const blogs = await Blog.find().sort({ createdAt: -1 });
+  const blogs = await Blog.find({ user: req.admin.id }).sort({ createdAt: -1 });
 
   // Fetch all analytics
   const blogIds = blogs.map((b) => b._id);
