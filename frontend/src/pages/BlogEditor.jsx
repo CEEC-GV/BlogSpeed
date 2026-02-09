@@ -39,6 +39,11 @@ export default function BlogEditor() {
   const [generatingContent, setGeneratingContent] = useState(false);
   const [trendingTopicContext, setTrendingTopicContext] = useState(null);
   
+  // Scheduling state
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [countdown, setCountdown] = useState(null); // { hours, minutes, seconds } or null
+  
   // SEO state
   const [seoTitles, setSeoTitles] = useState([]);
   const [seoMetaDescriptions, setSeoMetaDescriptions] = useState([]);
@@ -72,6 +77,52 @@ export default function BlogEditor() {
       .replace(/\s+/g, "-");
   }
 
+  // Convert IST date/time to UTC ISO string
+  const convertISTToUTC = (dateStr, timeStr) => {
+    if (!dateStr || !timeStr) return null;
+    
+    // Create date string in IST format: "YYYY-MM-DDTHH:mm:ss+05:30"
+    // IST is UTC+5:30
+    const istDateTimeString = `${dateStr}T${timeStr}:00+05:30`;
+    
+    // Parse the date string - this will correctly handle IST timezone
+    const date = new Date(istDateTimeString);
+    
+    // Return as ISO string (which is in UTC)
+    return date.toISOString();
+  };
+
+  // Convert UTC ISO string to IST date and time
+  const convertUTCToIST = (utcISOString) => {
+    if (!utcISOString) return { date: "", time: "" };
+    
+    const utcDate = new Date(utcISOString);
+    
+    // Convert UTC to IST by adding 5:30 hours
+    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+    const istDate = new Date(utcDate.getTime() + istOffset);
+    
+    // Format as YYYY-MM-DD
+    const year = istDate.getUTCFullYear();
+    const month = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(istDate.getUTCDate()).padStart(2, '0');
+    const date = `${year}-${month}-${day}`;
+    
+    // Format as HH:mm (24-hour)
+    const hours = String(istDate.getUTCHours()).padStart(2, '0');
+    const minutes = String(istDate.getUTCMinutes()).padStart(2, '0');
+    const time = `${hours}:${minutes}`;
+    
+    return { date, time };
+  };
+
+  // Format date for display: DD-MM-YYYY
+  const formatDateForDisplay = (dateStr) => {
+    if (!dateStr) return "";
+    const [year, month, day] = dateStr.split('-');
+    return `${day}-${month}-${year}`;
+  };
+
   useEffect(() => {
     if (!id) return;
     let isMounted = true;
@@ -90,6 +141,18 @@ export default function BlogEditor() {
           author: res.data.author || "",
           status: res.data.status || "Draft"
         });
+        
+        // Load schedule if exists
+        if (res.data.publishAt) {
+          const { date, time } = convertUTCToIST(res.data.publishAt);
+          setScheduleDate(date);
+          setScheduleTime(time);
+        } else {
+          setScheduleDate("");
+          setScheduleTime("");
+          setCountdown(null);
+        }
+        
         setSeoSlug(res.data.slug || generateSlug(title));
       })
       .catch(() => {
@@ -261,26 +324,71 @@ export default function BlogEditor() {
         }
       }
 
+      // Handle publishAt scheduling (frontend only decides whether a schedule exists;
+      // backend will enforce correct status semantics)
+      let publishAt = null;
+      let finalStatus = statusOverride || form.status;
+
+      if (hasSchedule) {
+        publishAt = convertISTToUTC(scheduleDate, scheduleTime);
+        // If a schedule exists, NEVER override to Published here.
+        // Let the backend and worker handle when it becomes Published.
+        if (publishAt) {
+          finalStatus = "Scheduled";
+        }
+      } else {
+        // No schedule - use normal status (Draft or Published)
+        publishAt = null;
+      }
+
       const payload = {
         ...form,
         excerpt: updatedExcerpt,
-        status: statusOverride || form.status,
+        status: finalStatus,
         slug: updatedSlug,
         primaryKeyphrase: updatedKeyphrases?.primary || "",
         secondaryKeyphrases: updatedKeyphrases?.secondary || []
       };
-
-      if (id) {
-        await api.put(`/admin/blogs/${id}`, payload);
-      } else {
-        await api.post("/admin/blogs", payload);
+      
+      // Only include publishAt in payload if it's not null
+      if (publishAt !== null) {
+        payload.publishAt = publishAt;
       }
 
-      setSuccessMessage(
-        statusOverride === "Published"
-          ? "Blog published successfully."
-          : "Draft saved successfully."
-      );
+
+      let response;
+      if (id) {
+        response = await api.put(`/admin/blogs/${id}`, payload);
+      } else {
+        response = await api.post("/admin/blogs", payload);
+      }
+
+      const savedBlog = response?.data || {};
+
+      // Sync local state with backend truth
+      setForm((prev) => ({
+        ...prev,
+        status: savedBlog.status || prev.status
+      }));
+
+      if (savedBlog.publishAt) {
+        const { date, time } = convertUTCToIST(savedBlog.publishAt);
+        setScheduleDate(date);
+        setScheduleTime(time);
+      } else {
+        setScheduleDate("");
+        setScheduleTime("");
+        setCountdown(null);
+      }
+
+      // Set success message based on backend status/publishAt
+      if (savedBlog.status === "Scheduled" && savedBlog.publishAt) {
+        setSuccessMessage("Blog scheduled successfully.");
+      } else if (savedBlog.status === "Published") {
+        setSuccessMessage("Blog published successfully.");
+      } else {
+        setSuccessMessage("Draft saved successfully.");
+      }
 
       setTimeout(() => {
         navigate("/admin");
@@ -519,6 +627,83 @@ export default function BlogEditor() {
   };
 
   const isPublished = form.status === "Published";
+  const isScheduled = form.status === "Scheduled";
+  const hasSchedule =
+    !!scheduleDate &&
+    !!scheduleTime &&
+    (() => {
+      const iso = convertISTToUTC(scheduleDate, scheduleTime);
+      return !!iso && !Number.isNaN(new Date(iso).getTime());
+    })();
+  
+  // Get formatted schedule display
+  const getScheduleDisplay = () => {
+    if (!scheduleDate || !scheduleTime) return "";
+    const formattedDate = formatDateForDisplay(scheduleDate);
+    
+    // If countdown is available, show it
+    if (countdown && countdown.total > 0) {
+      const { hours, minutes, seconds } = countdown;
+      const h = String(hours).padStart(2, '0');
+      const m = String(minutes).padStart(2, '0');
+      const s = String(seconds).padStart(2, '0');
+      return `Scheduled – Will publish on ${formattedDate} at ${scheduleTime} IST (in ${h}:${m}:${s})`;
+    } else if (countdown && countdown.total <= 0) {
+      return "Publishing...";
+    }
+    return `Scheduled – Will publish on ${formattedDate} at ${scheduleTime} IST`;
+  };
+
+  // Countdown timer effect - updates every second
+  useEffect(() => {
+    if (!isScheduled || !scheduleDate || !scheduleTime) {
+      setCountdown(null);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const publishAtUTC = convertISTToUTC(scheduleDate, scheduleTime);
+      if (!publishAtUTC) {
+        setCountdown(null);
+        return;
+      }
+
+      const publishDate = new Date(publishAtUTC);
+      const now = new Date();
+      const diff = publishDate.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        // Time has passed - check if blog is still scheduled
+        setCountdown({ total: 0, hours: 0, minutes: 0, seconds: 0 });
+        // Optionally refresh the blog status
+        if (id) {
+          api.get(`/admin/blogs/${id}`).then((res) => {
+            if (res.data.status !== form.status) {
+              setForm((prev) => ({
+                ...prev,
+                status: res.data.status
+              }));
+            }
+          }).catch(() => {});
+        }
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setCountdown({ total: diff, hours, minutes, seconds });
+    };
+
+    // Update immediately
+    updateCountdown();
+
+    // Update every second
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [isScheduled, scheduleDate, scheduleTime, id]);
 
   if (loading) return <Loader />;
 
@@ -1001,25 +1186,32 @@ export default function BlogEditor() {
           />
 
           {/* Publish Status */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
+          <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex-1">
                 <h3 className="text-sm font-medium text-white">Publish Status</h3>
                 <p className="text-xs text-white/60 mt-1">
-                  {isPublished ? "Live and visible to readers" : "Saved as draft"}
+                  {isPublished 
+                    ? "Published – Live and visible to readers" 
+                    : isScheduled 
+                    ? getScheduleDisplay()
+                    : "Draft – Saved as draft"}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() =>
-                  setForm((prev) => ({
-                    ...prev,
-                    status: prev.status === "Published" ? "Draft" : "Published"
-                  }))
-                }
+                onClick={() => {
+                  if (!isScheduled && !hasSchedule) {
+                    setForm((prev) => ({
+                      ...prev,
+                      status: prev.status === "Published" ? "Draft" : "Published"
+                    }));
+                  }
+                }}
+                disabled={isScheduled || hasSchedule}
                 className={`relative w-14 h-7 rounded-full transition-colors ${
                   isPublished ? "bg-green-600" : "bg-white/10 border border-white/20"
-                }`}
+                } ${isScheduled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
               >
                 <span
                   className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${
@@ -1027,6 +1219,98 @@ export default function BlogEditor() {
                   }`}
                 />
               </button>
+            </div>
+
+            {/* Schedule Publish - Date and Time Pickers */}
+            <div className="space-y-3 pt-3 border-t border-white/10">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-white/80">
+                  Schedule Publish (IST)
+                </label>
+                {hasSchedule && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScheduleDate("");
+                      setScheduleTime("");
+                      if (form.status === "Scheduled") {
+                        setForm((prev) => ({
+                          ...prev,
+                          status: "Draft"
+                        }));
+                      }
+                    }}
+                    className="text-xs font-medium text-red-400/80 hover:text-red-400 transition"
+                  >
+                    Clear Schedule
+                  </button>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {/* Date Picker */}
+                <div className="space-y-1.5">
+                  <label className="text-xs text-white/60">Date</label>
+                  <input
+                    type="date"
+                    value={scheduleDate}
+                    onChange={(e) => {
+                      setScheduleDate(e.target.value);
+                      // Don't auto-toggle status here; backend will enforce correct status
+                    }}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 text-sm text-white bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/50 focus:border-yellow-500/50 transition"
+                  />
+                </div>
+
+                {/* Time Picker (24-hour format) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs text-white/60">Time (24-hour)</label>
+                  <input
+                    type="time"
+                    value={scheduleTime}
+                    onChange={(e) => {
+                      setScheduleTime(e.target.value);
+                      // Don't auto-toggle status here; backend will enforce correct status
+                    }}
+                    className="w-full px-3 py-2 text-sm text-white bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/50 focus:border-yellow-500/50 transition"
+                  />
+                </div>
+              </div>
+
+              {isScheduled && (
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                    <span className="text-yellow-400 text-sm">⏰</span>
+                    <p className="text-xs text-yellow-400/90 leading-relaxed">
+                      This blog will be automatically published at the scheduled time. You can save as draft now.
+                    </p>
+                  </div>
+                  {countdown && countdown.total > 0 && (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30">
+                      <div className="flex items-center gap-1">
+                        <span className="text-yellow-400 text-lg">⏱️</span>
+                        <span className="text-xs text-white/60">Time remaining:</span>
+                      </div>
+                      <div className="flex items-center gap-1 font-mono font-semibold text-yellow-400">
+                        <span className="text-lg">{String(countdown.hours).padStart(2, '0')}</span>
+                        <span className="text-white/40">:</span>
+                        <span className="text-lg">{String(countdown.minutes).padStart(2, '0')}</span>
+                        <span className="text-white/40">:</span>
+                        <span className="text-lg">{String(countdown.seconds).padStart(2, '0')}</span>
+                      </div>
+                    </div>
+                  )}
+                  {countdown && countdown.total <= 0 && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/20 border border-green-500/30">
+                      <span className="text-green-400 text-sm">✓</span>
+                      <p className="text-xs text-green-400/90 font-medium">
+                        Publishing now... The blog will be live shortly.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1050,10 +1334,11 @@ export default function BlogEditor() {
             <button
               type="button"
               onClick={() => setShowPublishConfirm(true)}
-              disabled={saving}
+              disabled={saving || isScheduled}
               className="px-5 py-2.5 text-sm font-medium text-black bg-gradient-to-r from-[#ffde59] to-[#ff914d] rounded-lg hover:from-[#ffd700] hover:to-[#ff8c3a] transition disabled:opacity-50 disabled:cursor-not-allowed"
+              title={isScheduled ? "Clear schedule to publish immediately" : ""}
             >
-              Publish
+              Publish Now
             </button>
 
             <button

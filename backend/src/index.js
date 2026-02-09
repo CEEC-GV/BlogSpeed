@@ -8,6 +8,7 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") });
 import mongoose from "mongoose";
 import app from "./app.js";
 import Admin from "./models/Admin.js";
+import { startAutoPublishWorker } from "./workers/autoPublishWorker.js";
 const PORT = process.env.PORT || 5000;
 
 const ensureDefaultAdmin = async () => {
@@ -27,6 +28,8 @@ mongoose
   .then(() => {
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+      // Start the auto-publish worker (checks every 1 minute)
+      startAutoPublishWorker(1);
     });
   })
   .catch((err) => {

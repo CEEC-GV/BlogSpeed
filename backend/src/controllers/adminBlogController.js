@@ -12,13 +12,13 @@ import { sendMail } from "../utils/sendMail.js";
  * This function runs in the background and doesn't block the API response
  * @param {Object} blog - The blog object that was published
  */
-async function sendBlogNotificationEmails(blog) {
+export async function sendBlogNotificationEmails(blog) {
   console.log(`\n📧 [EMAIL FLOW] Step 1: Starting email notification for blog: "${blog.title}" (ID: ${blog._id})`);
   
   try {
     // Step 2: Check settings
     console.log(`📧 [EMAIL FLOW] Step 2: Checking autoBlogEmail setting...`);
-    const settings = await Settings.findOne({ user: req.admin.id });
+    const settings = await Settings.findOne({ user: blog.user });
     
     if (!settings || settings.autoBlogEmail !== true) {
       console.log(`📧 [EMAIL FLOW] ⚠️  Auto blog email is disabled in settings. Skipping email notification.`);
@@ -28,7 +28,7 @@ async function sendBlogNotificationEmails(blog) {
 
     // Step 3: Fetch subscribers
     console.log(`📧 [EMAIL FLOW] Step 3: Fetching subscribed users...`);
-    const subscribers = await Subscriber.find({ status: "subscribed", user: req.admin.id });
+    const subscribers = await Subscriber.find({ status: "subscribed", user: blog.user });
     console.log(`📧 [EMAIL FLOW] Found ${subscribers.length} subscribed users`);
 
     if (subscribers.length === 0) {
@@ -219,7 +219,23 @@ export const createBlog = asyncHandler(async (req, res) => {
   .toLowerCase()
   .trim();
   const author = sanitizeText(req.body.author || "");
-  const status = req.body.status || "Draft";
+  let status = req.body.status || "Draft";
+  
+  // Handle publishAt scheduling
+  let publishAt = null;
+  if (req.body.publishAt !== undefined && req.body.publishAt !== null && req.body.publishAt !== "") {
+    publishAt = new Date(req.body.publishAt);
+
+    // Validate the date
+    if (isNaN(publishAt.getTime())) {
+      return res.status(400).json({ message: "Invalid publishAt date format" });
+    }
+
+    // Any non-empty publishAt means this blog is Scheduled.
+    // Auto-publishing to "Published" is handled exclusively by the worker.
+    status = "Scheduled";
+  }
+  // If publishAt is null/empty/undefined, status remains as provided (Draft or Published)
 
   
   // Use provided SEO slug or generate from title
@@ -237,6 +253,7 @@ export const createBlog = asyncHandler(async (req, res) => {
     category,
     author,
     status,
+    publishAt,
     slug,
     user: req.admin.id, // Associate blog with admin user
 
@@ -249,10 +266,19 @@ export const createBlog = asyncHandler(async (req, res) => {
   });
 
   // Initialize analytics for this blog
-  await BlogAnalytics.create({ blogId: blog._id });
+  // Initialize analytics ONLY for published blogs (non-blocking)
+if (status === "Published") {
+  BlogAnalytics.create({
+    blogId: blog._id,
+    user: req.admin.id
+  }).catch(err => {
+    console.error("⚠️ Analytics init failed (non-blocking):", err.message);
+  });
+}
 
-  // Trigger email notification if blog is published (non-blocking)
-  if (status?.toLowerCase() === "published") {
+
+  // Trigger email notification ONLY if blog is published immediately (not scheduled)
+  if (status?.toLowerCase() === "published" && !publishAt) {
     sendBlogNotificationEmails(blog).catch(err => {
       console.error("❌ Background email sending failed:", err);
     });
@@ -282,7 +308,32 @@ export const updateBlog = asyncHandler(async (req, res) => {
   .toLowerCase()
   .trim();
   const author = sanitizeText(req.body.author ?? blog.author);
-  const status = req.body.status ?? blog.status;
+  let status = req.body.status ?? blog.status;
+  
+  // Handle publishAt scheduling
+  let publishAt = blog.publishAt;
+  if (req.body.publishAt !== undefined) {
+    if (req.body.publishAt === null || req.body.publishAt === "") {
+      // Schedule cleared
+      publishAt = null;
+      // If was Scheduled, use provided status or revert to Draft
+      if (blog.status === "Scheduled") {
+        status = status === "Published" ? "Published" : "Draft";
+      }
+      // If not Scheduled, keep the provided status
+    } else {
+      publishAt = new Date(req.body.publishAt);
+
+      // Validate the date
+      if (isNaN(publishAt.getTime())) {
+        return res.status(400).json({ message: "Invalid publishAt date format" });
+      }
+
+      // Any non-empty publishAt means this blog is Scheduled.
+      // Auto-publishing to "Published" is handled exclusively by the worker.
+      status = "Scheduled";
+    }
+  }
 
   blog.title = title;
   blog.content = content;
@@ -291,6 +342,7 @@ export const updateBlog = asyncHandler(async (req, res) => {
   blog.category = category;
   blog.author = author;
   blog.status = status;
+  blog.publishAt = publishAt;
   
   // Use provided SEO slug or generate from title
   blog.slug = req.body.slug && req.body.slug.trim()
@@ -308,8 +360,10 @@ export const updateBlog = asyncHandler(async (req, res) => {
 
   await blog.save();
 
-  // Trigger email notification if status changed from Draft to Published
-  if (previousStatus?.toLowerCase() !== "published" && status?.toLowerCase() === "published") {
+  // Trigger email notification ONLY if status changed to Published (not Scheduled)
+  if (previousStatus?.toLowerCase() !== "published" && 
+      status?.toLowerCase() === "published" && 
+      !publishAt) {
     console.log(`📧 Blog status changed to Published, triggering email notifications for blog: ${blog._id}`);
     sendBlogNotificationEmails(blog).catch(err => {
       console.error("❌ Background email sending failed:", err);

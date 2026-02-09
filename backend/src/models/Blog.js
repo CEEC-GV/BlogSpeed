@@ -12,9 +12,10 @@ const blogSchema = new mongoose.Schema(
     author: { type: String, required: true, trim: true },
     status: {
       type: String,
-      enum: ["Published", "Draft"],
+      enum: ["Published", "Draft", "Scheduled"],
       default: "Draft"
     },
+    publishAt: { type: Date, default: null },
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
     // ✅ SEO (WordPress-style, optional, non-breaking)
