@@ -731,7 +731,7 @@ export default function BlogEditor() {
                 <button
                   type="button"
                   onClick={() => setShowTrendingModal(true)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-black bg-gradient-to-r from-[#ffde59] to-[#ff914d] rounded-lg hover:from-[#ffd700] hover:to-[#ff8c3a] transition"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-orange-500 to-pink-500 rounded-lg hover:from-orange-600 hover:to-pink-600 transition"
                 >
                   <span>🔥</span>
                   Trending Topics
@@ -779,7 +779,7 @@ export default function BlogEditor() {
                   value={form.category}
                   onChange={handleChange}
                   required
-                  className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffde59]/50 focus:border-white/20 text-white placeholder-white/40 transition"
+                  className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-white/20 text-white placeholder-white/40 transition"
                 />
               </div>
               <div>
@@ -793,7 +793,7 @@ export default function BlogEditor() {
                   value={form.author}
                   onChange={handleChange}
                   required
-                  className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffde59]/50 focus:border-white/20 text-white placeholder-white/40 transition"
+                  className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-white/20 text-white placeholder-white/40 transition"
                 />
               </div>
             </div>
@@ -809,7 +809,7 @@ export default function BlogEditor() {
                 value={form.coverImage}
                 onChange={handleChange}
                 required
-                className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffde59]/50 focus:border-white/20 text-white placeholder-white/40 transition"
+                className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-white/20 text-white placeholder-white/40 transition"
               />
             </div>
             
@@ -878,7 +878,7 @@ export default function BlogEditor() {
               value={form.excerpt}
               onChange={handleChange}
               placeholder="A brief description that appears in search results..."
-              className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffde59]/50 focus:border-white/20 text-white placeholder-white/40 resize-none transition"
+              className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-white/20 text-white placeholder-white/40 resize-none transition"
             />
 
             <div className="flex items-center justify-between mt-2">
@@ -1020,7 +1020,7 @@ export default function BlogEditor() {
                       setSuccessMessage("Outline generated!");
                       setTimeout(() => setSuccessMessage(""), 2000);
                     }}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-black bg-[#ffde59] rounded-lg hover:bg-[#ffd700] transition"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition"
                   >
                     <span>📝</span>
                     Outline
@@ -1055,11 +1055,11 @@ export default function BlogEditor() {
               onChange={handleChange}
               required
               placeholder="Start writing your content here... or use 'Generate Content' to auto-create based on SERP insights"
-              className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffde59]/50 focus:border-white/20 text-white placeholder-white/40 resize-none font-mono transition"
+              className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-white/20 text-white placeholder-white/40 resize-none font-mono transition"
             />
             
             {seoSerpInsights && (
-              <p className="text-xs text-[#ffde59] mt-2">
+              <p className="text-xs text-purple-300 mt-2">
                 💡 Use the recommended sections above to structure your content for better SEO
               </p>
             )}
@@ -1115,7 +1115,7 @@ export default function BlogEditor() {
                   value={seoSlug || generateSlug(form.title)}
                   onChange={(e) => setSeoSlug(e.target.value)}
                   placeholder="auto-generated-from-title"
-                  className="flex-1 px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffde59]/50 focus:border-white/20 text-white placeholder-white/40 transition"
+                  className="flex-1 px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-white/20 text-white placeholder-white/40 transition"
                 />
               </div>
             </div>
@@ -1382,7 +1382,7 @@ export default function BlogEditor() {
                   setShowPublishConfirm(false);
                   saveBlog("Published");
                 }}
-                className="px-4 py-2 text-sm font-medium text-black bg-gradient-to-r from-[#ffde59] to-[#ff914d] rounded-lg hover:from-[#ffd700] hover:to-[#ff8c3a] transition"
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg hover:from-purple-700 hover:to-pink-700 transition"
               >
                 Publish Now
               </button>
@@ -1415,14 +1415,14 @@ export default function BlogEditor() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {trendingTopicContext && (
-                <div className="bg-gradient-to-r from-[#ffde59]/20 to-[#ff914d]/20 border border-[#ffde59]/30 rounded-xl p-4">
+                <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 rounded-xl p-4">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">📈</span>
                     <div>
-                      <p className="text-xs font-medium text-[#ffde59]">
+                      <p className="text-xs font-medium text-purple-300">
                         Broader Trending Topic
                       </p>
-                      <p className="text-sm font-semibold text-[#ffde59]">
+                      <p className="text-sm font-semibold text-purple-200">
                         {trendingTopicContext}
                       </p>
                     </div>
@@ -1463,7 +1463,7 @@ export default function BlogEditor() {
                   value={seoInput}
                   onChange={(e) => setSeoInput(e.target.value)}
                   placeholder="e.g. product onboarding"
-                  className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffde59]/50 focus:border-white/20 text-white placeholder-white/40 transition"
+                  className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-white/20 text-white placeholder-white/40 transition"
                 />
               </div>
 
@@ -1471,7 +1471,7 @@ export default function BlogEditor() {
                 <button
                   onClick={() => handleGenerateSeo()}
                   disabled={seoLoading}
-                  className="px-4 py-2 text-sm font-medium text-black bg-[#ffde59] rounded-lg hover:bg-[#ffd700] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {seoLoading ? "Generating..." : "Generate"}
                 </button>
@@ -1594,7 +1594,7 @@ export default function BlogEditor() {
                         type="text"
                         value={seoSlug}
                         onChange={(e) => setSeoSlug(e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffde59]/50 focus:border-white/20 text-white placeholder-white/40 transition"
+                        className="w-full px-3 py-2 text-sm border border-white/10 bg-white/5 backdrop-blur rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-white/20 text-white placeholder-white/40 transition"
                         placeholder="seo-friendly-url-slug"
                       />
                     </div>
