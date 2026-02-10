@@ -1,16 +1,50 @@
 import { VertexAI } from "@google-cloud/vertexai";
 import { analyzeSerp } from "../services/serpAnalysisService.js";
 import { getJson } from 'serpapi';
+import { consumeCredits } from "../services/creditService.js";
+import { CREDIT_COSTS } from "../config/creditCosts.js";
 
-// Initialize Vertex AI
-const vertexAI = new VertexAI({
-  project: process.env.GOOGLE_CLOUD_PROJECT || "seventytwo",
-  location: process.env.GOOGLE_CLOUD_LOCATION || "us-central1",
-});
+// Lazy initialization of Vertex AI to avoid startup failures
+let vertexAI = null;
+let model = null;
+let initError = null;
 
-const model = vertexAI.getGenerativeModel({
-  model: "gemini-2.5-flash",
-});
+const initializeVertexAI = () => {
+  if (model) return model; // Already initialized
+  if (initError) throw initError; // Previous init failed
+  
+  try {
+    // Check if credentials are configured
+    if (!process.env.GOOGLE_CLOUD_PROJECT) {
+      throw new Error('GOOGLE_CLOUD_PROJECT environment variable is not set');
+    }
+    
+    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      throw new Error('GOOGLE_APPLICATION_CREDENTIALS environment variable is not set');
+    }
+    
+    console.log('🚀 Initializing Vertex AI...');
+    console.log('   Project:', process.env.GOOGLE_CLOUD_PROJECT);
+    console.log('   Location:', process.env.GOOGLE_CLOUD_LOCATION || 'us-central1');
+    console.log('   Credentials:', process.env.GOOGLE_APPLICATION_CREDENTIALS);
+    
+    vertexAI = new VertexAI({
+      project: process.env.GOOGLE_CLOUD_PROJECT,
+      location: process.env.GOOGLE_CLOUD_LOCATION || "us-central1",
+    });
+    
+    model = vertexAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+    });
+    
+    console.log('✅ Vertex AI initialized successfully');
+    return model;
+  } catch (error) {
+    initError = error;
+    console.error('❌ Vertex AI initialization failed:', error.message);
+    throw error;
+  }
+};
 
 // Caches
 const seoCache = new Map();
@@ -64,6 +98,11 @@ const parseAIResponse = (aiText, fallbackExtract = false) => {
 
 export const generateSeoTitles = async (req, res) => {
   try {
+    console.log('🚀 generateSeoTitles called');
+    console.log('📦 Request body:', JSON.stringify(req.body, null, 2));
+    console.log('👤 req.admin:', req.admin ? 'EXISTS' : 'NULL');
+    console.log('👤 req.user:', req.user ? 'EXISTS' : 'NULL');
+    
     const { 
       input,                    // The selected related query
       trendingTopic,           // 🔥 NEW: The original trending topic
@@ -77,6 +116,7 @@ export const generateSeoTitles = async (req, res) => {
     }
     
     if (seoCache.has(input)) {
+      console.log('✅ Returning cached result');
       return res.json(seoCache.get(input));
     }
 
@@ -84,11 +124,17 @@ export const generateSeoTitles = async (req, res) => {
       return res.status(400).json({ message: "Input is required" });
     }
 
-    if (!process.env.GOOGLE_CLOUD_PROJECT || !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      console.error("GOOGLE_CLOUD_PROJECT or GOOGLE_APPLICATION_CREDENTIALS is not set");
+    // Initialize Vertex AI on first use
+    let aiModel;
+    try {
+      aiModel = initializeVertexAI();
+    } catch (initErr) {
+      console.error('❌ Vertex AI initialization failed:', initErr.message);
       return res.status(500).json({
         success: false,
-        message: "Google Cloud credentials not configured.",
+        message: "Google Cloud AI is not properly configured. Please contact administrator.",
+        error: initErr.message,
+        details: "Missing or invalid Google Cloud credentials"
       });
     }
 
@@ -258,7 +304,8 @@ export const generateSeoTitles = async (req, res) => {
 
     Return ONLY the JSON object. No markdown, no code blocks, no explanations.`;
 
-    const response = await model.generateContent({
+    console.log('📤 Sending request to Vertex AI...');
+    const response = await aiModel.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: { 
         maxOutputTokens: 3000, 
@@ -267,6 +314,7 @@ export const generateSeoTitles = async (req, res) => {
       }
     });
 
+    console.log('✅ Received response from Vertex AI');
     const aiText = response.response.candidates[0].content.parts[0].text;
     
     let jsonText = aiText.trim();
@@ -302,6 +350,33 @@ export const generateSeoTitles = async (req, res) => {
     };
 
     seoCache.set(input, payload);
+    
+    // ✅ STEP 3: Deduct credits after successful AI generation
+    try {
+      const account = req.admin || req.user;
+      if (account) {
+        const updatedUser = await consumeCredits(
+          account._id,
+          CREDIT_COSTS.TITLE_GENERATION,
+          "seo_title"
+        );
+        payload.creditBalance = updatedUser.creditBalance;
+      }
+    } catch (creditError) {
+      console.error(`❌ Credit deduction failed: ${creditError.message}`);
+      if (creditError.statusCode === 403) {
+        return res.status(403).json({
+          success: false,
+          message: "Insufficient credits. Please top up.",
+          required: CREDIT_COSTS.TITLE_GENERATION,
+          currentBalance: creditError.currentBalance,
+          data: payload.data // Still return generated data
+        });
+      }
+      // Other credit errors - continue but log
+      console.warn(`⚠️ Continue despite credit error: ${creditError.message}`);
+    }
+    
     return res.json(payload);
 
   } catch (error) {
@@ -330,10 +405,17 @@ export const generateMetaDescriptions = async (req, res) => {
       return res.json(metaDescCache.get(title));
     }
 
-    if (!process.env.GOOGLE_CLOUD_PROJECT || !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    // Initialize Vertex AI on first use
+    let aiModel;
+    try {
+      aiModel = initializeVertexAI();
+    } catch (initErr) {
+      console.error('❌ Vertex AI initialization failed:', initErr.message);
       return res.status(500).json({
         success: false,
-        message: "Google Cloud credentials not configured.",
+        message: "Google Cloud AI is not properly configured. Please contact administrator.",
+        error: initErr.message,
+        details: "Missing or invalid Google Cloud credentials"
       });
     }
 
@@ -362,7 +444,7 @@ Example format:
       try {
         console.log(`📝 Generating meta descriptions (attempt ${retryCount + 1}/${maxRetries + 1})...`);
 
-        const response = await model.generateContent({
+        const response = await aiModel.generateContent({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: { 
             maxOutputTokens: 1000, 
@@ -495,6 +577,33 @@ Example format:
     };
 
     metaDescCache.set(title, payload);
+    
+    // ✅ STEP 3: Deduct credits after successful AI generation
+    try {
+      const account = req.admin || req.user;
+      if (account) {
+        const updatedUser = await consumeCredits(
+          account._id,
+          CREDIT_COSTS.META_DESCRIPTION,
+          "meta_description"
+        );
+        payload.creditBalance = updatedUser.creditBalance;
+      }
+    } catch (creditError) {
+      console.error(`❌ Credit deduction failed: ${creditError.message}`);
+      if (creditError.statusCode === 403) {
+        return res.status(403).json({
+          success: false,
+          message: "Insufficient credits. Please top up.",
+          required: CREDIT_COSTS.META_DESCRIPTION,
+          currentBalance: creditError.currentBalance,
+          data: payload // Still return generated data
+        });
+      }
+      // Other credit errors - continue but log
+      console.warn(`⚠️ Continue despite credit error: ${creditError.message}`);
+    }
+    
     return res.json(payload);
 
   } catch (error) {
@@ -537,10 +646,17 @@ export const generateBlogContent = async (req, res) => {
   }
 
   try {
-    if (!process.env.GOOGLE_CLOUD_PROJECT || !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    // Initialize Vertex AI on first use
+    let aiModel;
+    try {
+      aiModel = initializeVertexAI();
+    } catch (initErr) {
+      console.error('❌ Vertex AI initialization failed:', initErr.message);
       return res.status(500).json({
         success: false,
-        message: "Google Cloud credentials not configured.",
+        message: "Google Cloud AI is not properly configured. Please contact administrator.",
+        error: initErr.message,
+        details: "Missing or invalid Google Cloud credentials"
       });
     }
 
@@ -618,7 +734,7 @@ NO code blocks, NO explanations, ONLY the JSON object.`;
       try {
         console.log(`📝 Generating content (attempt ${retryCount + 1}/${maxRetries + 1})...`);
         
-        const response = await model.generateContent({
+        const response = await aiModel.generateContent({
           contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
           generationConfig: {
             maxOutputTokens: 8000,
@@ -677,6 +793,33 @@ NO code blocks, NO explanations, ONLY the JSON object.`;
     };
 
     contentCache.set(cacheKey, payload);
+    
+    // ✅ STEP 3: Deduct credits after successful AI generation
+    try {
+      const account = req.admin || req.user;
+      if (account) {
+        const updatedUser = await consumeCredits(
+          account._id,
+          CREDIT_COSTS.CONTENT_GENERATION,
+          "blog_content"
+        );
+        payload.creditBalance = updatedUser.creditBalance;
+      }
+    } catch (creditError) {
+      console.error(`❌ Credit deduction failed: ${creditError.message}`);
+      if (creditError.statusCode === 403) {
+        return res.status(403).json({
+          success: false,
+          message: "Insufficient credits. Please top up.",
+          required: CREDIT_COSTS.CONTENT_GENERATION,
+          currentBalance: creditError.currentBalance,
+          data: payload.data // Still return generated data
+        });
+      }
+      // Other credit errors - continue but log
+      console.warn(`⚠️ Continue despite credit error: ${creditError.message}`);
+    }
+    
     return res.json(payload);
 
   } catch (error) {
@@ -718,7 +861,7 @@ export const analyzeContentGaps = async (req, res) => {
 
     const wordCount = (content || "").split(/\s+/).filter(w => w.length > 0).length;
 
-    res.json({
+    const payload = {
       success: true,
       analysis: {
         wordCount: {
@@ -735,7 +878,35 @@ export const analyzeContentGaps = async (req, res) => {
           ? `Consider adding sections on: ${missingTopics.slice(0, 3).join(", ")}`
           : "✅ Good topic coverage!"
       }
-    });
+    };
+    
+    // ✅ STEP 3: Deduct credits after successful analysis
+    try {
+      const account = req.admin || req.user;
+      if (account) {
+        const updatedUser = await consumeCredits(
+          account._id,
+          CREDIT_COSTS.CONTENT_GAP_ANALYSIS,
+          "content_gap_analysis"
+        );
+        payload.creditBalance = updatedUser.creditBalance;
+      }
+    } catch (creditError) {
+      console.error(`❌ Credit deduction failed: ${creditError.message}`);
+      if (creditError.statusCode === 403) {
+        return res.status(403).json({
+          success: false,
+          message: "Insufficient credits. Please top up.",
+          required: CREDIT_COSTS.CONTENT_GAP_ANALYSIS,
+          currentBalance: creditError.currentBalance,
+          data: payload // Still return analysis data
+        });
+      }
+      // Other credit errors - continue but log
+      console.warn(`⚠️ Continue despite credit error: ${creditError.message}`);
+    }
+
+    return res.json(payload);
 
   } catch (error) {
     console.error("Content Gap Analysis Error:", error);

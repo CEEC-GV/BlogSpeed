@@ -14,6 +14,26 @@ const adminSchema = new mongoose.Schema(
       type: String,
       required: true,
       minlength: 6
+    },
+    email: {
+      type: String,
+      default: null
+    },
+    name: {
+      type: String,
+      default: null
+    },
+    creditBalance: {
+      type: Number,
+      default: 0
+    },
+    totalCreditsPurchased: {
+      type: Number,
+      default: 0
+    },
+    lastCreditTopupAt: {
+      type: Date,
+      default: null
     }
   },
   { timestamps: true }

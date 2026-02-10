@@ -57,9 +57,8 @@ const subscriberSchema = new mongoose.Schema(
 );
 
 // Indexes for better query performance
-subscriberSchema.index({ email: 1 });
+// email and unsubscribeToken already have unique indexes from schema definition
 subscriberSchema.index({ status: 1 });
-subscriberSchema.index({ unsubscribeToken: 1 });
 
 // Virtual to check if subscribed
 subscriberSchema.virtual('isSubscribed').get(function () {

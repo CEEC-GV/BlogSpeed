@@ -9,33 +9,43 @@ import NotFound from "./pages/NotFound.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AnalyticsDashboard from "./pages/Analytics.jsx";
 import SubscribersPage from "./pages/Subscribers.jsx";
+import PricingPage from "./pages/PricingPage.jsx";
+import UserLogin from "./pages/UserLogin.jsx";
+import UserRegister from "./pages/UserRegister.jsx";
+import { UserProvider } from "./context/UserContext.jsx";
+import { AdminProvider } from "./context/AdminContext.jsx";
 
 export default function App() {
   return (
-    <Routes>
-      
+    <AdminProvider>
+      <UserProvider>
+        <Routes>
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/" element={<BlogSpeedsLanding />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/login" element={<UserLogin />} />
+          <Route path="/register" element={<UserRegister />} />
 
-      <Route path="/admin/login" element={<AdminLogin />} />
-      <Route path="/" element={<BlogSpeedsLanding />} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<AdminDashboard />} />
+            <Route path="new" element={<BlogEditor />} />
+            <Route path="analytics" element={<AnalyticsDashboard />} />
+            <Route path="edit/:id" element={<BlogEditor />} />
+            <Route path="subscribers" element={<SubscribersPage />} />
+            <Route path="pricing" element={<PricingPage />} />
+          </Route>
 
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute>
-            <AdminLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<AdminDashboard />} />
-        <Route path="new" element={<BlogEditor />} />
-        <Route path="analytics" element={<AnalyticsDashboard />} />
-        <Route path="edit/:id" element={<BlogEditor />} />
-        <Route path="subscribers" element={<SubscribersPage />} />
-      </Route>
-
-
-      <Route path="/404" element={<NotFound />} />
-      <Route path="*" element={<Navigate to="/404" replace />} />
-    </Routes>
+          <Route path="/404" element={<NotFound />} />
+          <Route path="*" element={<Navigate to="/404" replace />} />
+        </Routes>
+      </UserProvider>
+    </AdminProvider>
   );
 }

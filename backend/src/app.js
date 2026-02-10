@@ -12,7 +12,10 @@ import trendsRoutes from "./routes/trendsRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 import subscriberRoutes from "./routes/subscriberRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
-import settingsRoutes from "./routes/settingsRoutes.js"; 
+import settingsRoutes from "./routes/settingsRoutes.js";
+import subscriptionRoutes from "./routes/subscriptionRoutes.js";
+import webhookRoutes from "./routes/webhookRoutes.js"; 
+import userRoutes from "./routes/userRoutes.js";
 
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
@@ -35,6 +38,10 @@ app.options("*", cors());
 
 app.use(helmet());
 app.use(morgan("dev"));
+
+// Webhook routes MUST be before express.json() to access raw body
+app.use("/api/webhooks", webhookRoutes);
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(mongoSanitize());
@@ -51,7 +58,9 @@ app.use("/api/trends", trendsRoutes);
 app.use("/api/admin/analytics", analyticsRoutes);
 app.use("/api/subscribers", subscriberRoutes);
 app.use("/api/contact", contactRoutes);
-app.use("/api/settings", settingsRoutes); 
+app.use("/api/settings", settingsRoutes);
+app.use("/api/subscriptions", subscriptionRoutes); 
+app.use("/api/users", userRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -1,10 +1,12 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import Button from "../components/Button.jsx";
 import { clearToken } from "../utils/auth.js";
-import { Zap, LogOut, FileText, Plus, BarChart3, UserStar } from "lucide-react";
+import { Zap, LogOut, FileText, Plus, BarChart3, UserStar, CreditCard } from "lucide-react";
+import { useAdmin } from "../context/AdminContext.jsx";
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const { admin } = useAdmin();
 
   const handleLogout = () => {
     clearToken();
@@ -30,6 +32,29 @@ export default function AdminLayout() {
           <Link to="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-white">
             <img src='/src/assets/logo-white.png' alt="BlogSpeeds Logo" className="h-8 w-auto" />
           </Link>
+
+          {admin && (
+            <div className="mt-6 p-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur">
+              <p className="text-xs uppercase tracking-wide text-white/50">Credits</p>
+              <p className="mt-2 text-2xl font-semibold text-white">
+                {admin.creditBalance || 0}
+              </p>
+              <NavLink
+                to="/admin/pricing"
+                className={({ isActive }) =>
+                  `mt-4 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                    isActive
+                      ? "bg-white/10 text-white border border-white/20"
+                      : "bg-purple-600 text-white hover:bg-purple-700"
+                  }`
+                }
+              >
+                <CreditCard className="w-4 h-4" />
+                Top Up
+              </NavLink>
+            </div>
+          )}
+
           <nav className="mt-10 space-y-2 text-sm">
             <NavLink
               to="/admin/analytics"

@@ -7,8 +7,11 @@ const signToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "1d" });
 
 export const loginAdmin = asyncHandler(async (req, res) => {
-  const username = sanitizeText(req.body.username).toLowerCase();
+  const raw = sanitizeText(req.body.username).toLowerCase().trim();
   const password = req.body.password || "";
+
+  // Accept "username" or "user@example.com" — look up by username, using part before @ if it looks like email
+  const username = raw.includes("@") ? raw.split("@")[0] : raw;
 
   const admin = await Admin.findOne({ username });
   if (!admin) {
@@ -22,7 +25,15 @@ export const loginAdmin = asyncHandler(async (req, res) => {
 
   res.json({
     token: signToken(admin._id),
-    admin: { id: admin._id, username: admin.username }
+    admin: { 
+      id: admin._id, 
+      username: admin.username,
+      email: admin.email,
+      name: admin.name,
+      creditBalance: admin.creditBalance || 0,
+      totalCreditsPurchased: admin.totalCreditsPurchased || 0,
+      lastCreditTopupAt: admin.lastCreditTopupAt
+    }
   });
 });
 
@@ -53,6 +64,28 @@ export const createAdmin = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     token: signToken(admin._id),
-    admin: { id: admin._id, username: admin.username }
+    admin: { 
+      id: admin._id, 
+      username: admin.username,
+      email: admin.email,
+      name: admin.name,
+      creditBalance: admin.creditBalance || 0,
+      totalCreditsPurchased: admin.totalCreditsPurchased || 0,
+      lastCreditTopupAt: admin.lastCreditTopupAt
+    }
+  });
+});
+
+export const getAdminMe = asyncHandler(async (req, res) => {
+  res.json({
+    admin: {
+      id: req.admin._id,
+      username: req.admin.username,
+      email: req.admin.email,
+      name: req.admin.name,
+      creditBalance: req.admin.creditBalance || 0,
+      totalCreditsPurchased: req.admin.totalCreditsPurchased || 0,
+      lastCreditTopupAt: req.admin.lastCreditTopupAt
+    }
   });
 });

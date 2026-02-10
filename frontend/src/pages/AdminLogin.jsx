@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Zap, Eye, EyeOff, ArrowRight, Lock, User } from "lucide-react";
-import api from "../api/axios.js";
-import { isTokenValid, setToken } from "../utils/auth.js";
+import { isTokenValid } from "../utils/auth.js";
+import { useAdmin } from "../context/AdminContext.jsx";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const { login } = useAdmin();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,11 +22,18 @@ export default function AdminLogin() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.post("/auth/login", { username, password });
-      setToken(res.data.token);
+      await login({ username, password });
       navigate("/admin");
     } catch (err) {
-      setError("Invalid credentials. Please try again.");
+      const isNetwork = !err.response;
+      const msg = err.response?.data?.message;
+      setError(
+        isNetwork
+          ? "Could not reach the server. Make sure the backend is running (e.g. on port 5001)."
+          : msg === "Invalid credentials"
+            ? "Invalid credentials. Please try again."
+            : msg || "Something went wrong. Please try again."
+      );
     } finally {
       setLoading(false);
     }

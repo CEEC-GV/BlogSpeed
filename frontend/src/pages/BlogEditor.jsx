@@ -9,6 +9,7 @@ import SeoCheckList from "../components/SeoCheckList.jsx";
 import SerpPreview from "../components/SerpPreview.jsx";
 import TrendingTopics from "../components/TrendsTopics.jsx";
 import ContentGapAnalysis from "../components/ContentGapAnalysis.jsx";
+import { useAdmin } from "../context/AdminContext.jsx";
 
 const emptyForm = {
   title: "",
@@ -23,6 +24,7 @@ const emptyForm = {
 export default function BlogEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { refreshAdmin } = useAdmin();
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -488,12 +490,20 @@ export default function BlogEditor() {
       
       if (res.data.success && res.data.metaDescriptions) {
         setSeoMetaDescriptions(res.data.metaDescriptions);
+        // Refresh admin to update credit balance
+        refreshAdmin();
       } else {
         throw new Error(res.data.message || "Failed to generate meta descriptions");
       }
     } catch (err) {
       console.error("Meta Description Generation Error:", err);
-      setSeoError(err.response?.data?.message || err.message || "Unable to generate meta descriptions.");
+      const errorMsg = err.response?.data?.message || err.message || "Unable to generate meta descriptions.";
+      setSeoError(errorMsg);
+      
+      // Show user-friendly error for insufficient credits
+      if (err.response?.status === 403) {
+        setSeoError("Insufficient credits. Please top up to continue.");
+      }
     } finally {
       setMetaLoading(false);
     }
@@ -527,11 +537,18 @@ export default function BlogEditor() {
         }));
         setSeoSlug(generateSlug(payload.title));
         setShowSeoModal(false);
+        // Refresh admin to update credit balance
+        refreshAdmin();
       }
     } catch (err) {
       console.error("Content Generation Error:", err);
       const errorMsg = err.response?.data?.message || err.message || "Unable to generate blog content.";
       setSeoError(errorMsg);
+      
+      // Show user-friendly error for insufficient credits
+      if (err.response?.status === 403) {
+        setSeoError("Insufficient credits. Please top up to continue.");
+      }
     } finally {
       setSeoContentLoadingIndex(null);
     }
@@ -571,10 +588,18 @@ export default function BlogEditor() {
         }));
         setSuccessMessage("Content generated successfully!");
         setTimeout(() => setSuccessMessage(""), 3000);
+        // Refresh admin to update credit balance
+        refreshAdmin();
       }
     } catch (err) {
       console.error("Content Generation Error:", err);
-      setError(err.response?.data?.message || err.message || "Unable to generate content.");
+      const errorMsg = err.response?.data?.message || err.message || "Unable to generate content.";
+      setError(errorMsg);
+      
+      // Show user-friendly error for insufficient credits
+      if (err.response?.status === 403) {
+        setError("Insufficient credits. Please top up to continue.");
+      }
     } finally {
       setGeneratingContent(false);
     }
@@ -616,11 +641,18 @@ export default function BlogEditor() {
         }));
         setSuccessMessage("Content regenerated successfully!");
         setTimeout(() => setSuccessMessage(""), 3000);
+        // Refresh admin to update credit balance
+        refreshAdmin();
       }
     } catch (err) {
       console.error("Direct Content Generation Error:", err);
       const errorMsg = err.response?.data?.message || err.message || "Unable to regenerate content.";
       setError(errorMsg);
+      
+      // Show user-friendly error for insufficient credits
+      if (err.response?.status === 403) {
+        setError("Insufficient credits. Please top up to continue.");
+      }
     } finally {
       setRegeneratingContent(false);
     }
@@ -1070,6 +1102,7 @@ export default function BlogEditor() {
             <ContentGapAnalysis
               content={form.content}
               primaryKeyword={seoKeyphrases.primary}
+              onAnalysisComplete={refreshAdmin}
             />
           )}
 

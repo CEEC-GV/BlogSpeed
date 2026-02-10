@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../api/axios.js";
 
-export default function ContentGapAnalysis({ content, primaryKeyword }) {
+export default function ContentGapAnalysis({ content, primaryKeyword, onAnalysisComplete }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -21,16 +21,24 @@ export default function ContentGapAnalysis({ content, primaryKeyword }) {
 
         if (res.data.success) {
           setAnalysis(res.data.analysis);
+          // Notify parent that analysis completed (credits were consumed)
+          if (onAnalysisComplete) {
+            onAnalysisComplete();
+          }
         }
       } catch (error) {
         console.error("Content gap analysis failed:", error);
+        // Show user-friendly error for insufficient credits
+        if (error.response?.status === 403) {
+          console.error("Insufficient credits for content gap analysis");
+        }
       } finally {
         setLoading(false);
       }
     }, 2000); // Debounce 2 seconds
 
     return () => clearTimeout(timer);
-  }, [content, primaryKeyword]);
+  }, [content, primaryKeyword, onAnalysisComplete]);
 
   if (!primaryKeyword) {
     return null;

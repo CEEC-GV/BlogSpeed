@@ -1,12 +1,15 @@
 import express from "express";
 import { body } from "express-validator";
-import { loginAdmin, createAdmin } from "../controllers/authController.js";
+import { loginAdmin, createAdmin, getAdminMe } from "../controllers/authController.js";
+import { protect } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
+import { authLimiter } from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 
 router.post(
   "/login",
+  authLimiter,
   [
     body("username")
       .notEmpty()
@@ -21,6 +24,7 @@ router.post(
 
 router.post(
   "/register",
+  authLimiter,
   [
     body("username")
       .notEmpty()
@@ -36,5 +40,7 @@ router.post(
   validate,
   createAdmin
 );
+
+router.get("/me", protect, getAdminMe);
 
 export default router;
