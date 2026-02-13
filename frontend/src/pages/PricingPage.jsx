@@ -131,16 +131,7 @@ export default function PricingPage() {
         </div>
       )}
 
-      {!user && (
-        <div className="fixed top-6 right-6 z-40">
-          <button
-            onClick={() => window.location.href = "/login"}
-            className="px-4 py-2 rounded-lg bg-purple-900/50 border border-purple-500/30 text-purple-200 text-sm hover:bg-purple-900/70 transition-colors"
-          >
-            Please login to top up
-          </button>
-        </div>
-      )}
+
 
       {toast && (
         <div

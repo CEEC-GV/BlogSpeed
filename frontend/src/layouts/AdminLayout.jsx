@@ -33,28 +33,6 @@ export default function AdminLayout() {
             <img src='/src/assets/logo-white.png' alt="BlogSpeeds Logo" className="h-8 w-auto" />
           </Link>
 
-          {admin && (
-            <div className="mt-6 p-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur">
-              <p className="text-xs uppercase tracking-wide text-white/50">Credits</p>
-              <p className="mt-2 text-2xl font-semibold text-white">
-                {admin.creditBalance || 0}
-              </p>
-              <NavLink
-                to="/admin/pricing"
-                className={({ isActive }) =>
-                  `mt-4 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                    isActive
-                      ? "bg-white/10 text-white border border-white/20"
-                      : "bg-purple-600 text-white hover:bg-purple-700"
-                  }`
-                }
-              >
-                <CreditCard className="w-4 h-4" />
-                Top Up
-              </NavLink>
-            </div>
-          )}
-
           <nav className="mt-10 space-y-2 text-sm">
             <NavLink
               to="/admin/analytics"
