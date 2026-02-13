@@ -18,6 +18,8 @@ export const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     req.admin = await Admin.findById(decoded.id).select("-password");
+    // Back-compat: many controllers expect req.user
+    req.user = req.admin;
     if (!req.admin) {
       return res.status(401).json({ message: "Not authorized" });
     }

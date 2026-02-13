@@ -89,3 +89,20 @@ export const getAdminMe = asyncHandler(async (req, res) => {
     }
   });
 });
+
+export const getUserInfo = asyncHandler(async (req, res) => {
+  const user = await Admin.findById(req.user._id).select("-password");
+  
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  res.json({
+    id: user._id,
+    username: user.username,
+    creditBalance: user.creditBalance || 0,
+    totalCreditsPurchased: user.totalCreditsPurchased || 0,
+    lastCreditTopupAt: user.lastCreditTopupAt,
+    createdAt: user.createdAt
+  });
+});

@@ -118,9 +118,31 @@ export default function AdminLayout() {
               Logout
             </button>
           </nav>
+          
+          {/* Credit Balance Card */}
+          <div className="mt-auto mb-6">
+            <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 backdrop-blur-xl border border-blue-500/30 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CreditCard className="w-4 h-4 text-blue-400" />
+                <span className="text-xs font-semibold text-white/60 uppercase tracking-wide">
+                  Credits
+                </span>
+              </div>
+              <div className="text-3xl font-bold text-white mb-3">
+                {admin?.creditBalance ?? 0}
+              </div>
+              <Link
+                to="/admin/pricing"
+                className="block w-full text-center bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold py-2 px-4 rounded-lg transition"
+              >
+                Top Up
+              </Link>
+            </div>
+          </div>
+          
           <Link
             to="/"
-            className="mt-auto text-xs font-semibold uppercase tracking-wide text-white/40 transition hover:text-white/60"
+            className="text-xs font-semibold uppercase tracking-wide text-white/40 transition hover:text-white/60"
           >
             ← Back to Site
           </Link>

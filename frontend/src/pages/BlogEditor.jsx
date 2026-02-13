@@ -280,6 +280,12 @@ export default function BlogEditor() {
       });
 
       if (res.data.success && res.data.titles && res.data.metaDescriptions) {
+        // Update credits instantly
+        if (typeof res.data.remainingCredits === 'number') {
+          console.log('[Credits] autoGenerateSeoFromTitle - AI Titles API returned credits:', res.data.remainingCredits);
+          updateCredits(res.data.remainingCredits);
+        }
+        
         return {
           metaDescription: res.data.metaDescriptions[0] || null,
           keyphrases: res.data.keyphrases || null,
@@ -436,6 +442,12 @@ export default function BlogEditor() {
         throw new Error(res.data.message || "Invalid response from server");
       }
 
+      // Update credits instantly
+      if (typeof res.data.remainingCredits === 'number') {
+        console.log('[Credits] handleGenerateSeo - AI Titles API returned credits:', res.data.remainingCredits);
+        updateCredits(res.data.remainingCredits);
+      }
+
       if (res.data.titles) {
         setSeoTitles(res.data.titles);
         setSeoSlug(res.data.slug || "");
@@ -489,6 +501,12 @@ export default function BlogEditor() {
       const res = await api.post("/admin/blogs/ai/meta", { title, force: true });
       
       if (res.data.success && res.data.metaDescriptions) {
+        // Update credits instantly
+        if (typeof res.data.remainingCredits === 'number') {
+          console.log('[Credits] handleSelectTitle - AI Meta API returned credits:', res.data.remainingCredits);
+          updateCredits(res.data.remainingCredits);
+        }
+        
         setSeoMetaDescriptions(res.data.metaDescriptions);
         // Refresh admin to update credit balance
         refreshAdmin();
@@ -526,6 +544,12 @@ export default function BlogEditor() {
         originalInput: seoInput,
         force: true
       });
+
+      // Update credits instantly
+      if (typeof res.data.remainingCredits === 'number') {
+        console.log('[Credits] handleGenerateContentFromTitle - AI Content API returned credits:', res.data.remainingCredits);
+        updateCredits(res.data.remainingCredits);
+      }
 
       const payload = res.data?.data;
       if (payload?.title && payload?.excerpt && payload?.content) {
@@ -578,6 +602,12 @@ export default function BlogEditor() {
         recommendedSections: seoSerpInsights?.recommendedSections || []
       });
 
+      // Update credits instantly
+      if (typeof res.data.remainingCredits === 'number') {
+        console.log('[Credits] handleGenerateContent - AI Content API returned credits:', res.data.remainingCredits);
+        updateCredits(res.data.remainingCredits);
+      }
+
       const payload = res.data?.data;
 
       if (payload?.content) {
@@ -619,6 +649,12 @@ export default function BlogEditor() {
         input: form.title
       });
 
+      // Update credits instantly
+      if (typeof titlesRes.data.remainingCredits === 'number') {
+        console.log('[Credits] handleRegenerateContentDirectly (step 1) - AI Titles API returned credits:', titlesRes.data.remainingCredits);
+        updateCredits(titlesRes.data.remainingCredits);
+      }
+
       if (!titlesRes.data.success || !Array.isArray(titlesRes.data.data) || titlesRes.data.data.length === 0) {
         throw new Error("Unable to generate SEO keywords for the title.");
       }
@@ -631,6 +667,12 @@ export default function BlogEditor() {
         originalInput: form.title,
         force: true
       });
+
+      // Update credits instantly
+      if (typeof contentRes.data.remainingCredits === 'number') {
+        console.log('[Credits] handleRegenerateContentDirectly (step 2) - AI Content API returned credits:', contentRes.data.remainingCredits);
+        updateCredits(contentRes.data.remainingCredits);
+      }
 
       const payload = contentRes.data?.data;
       if (payload?.excerpt && payload?.content) {
@@ -887,6 +929,13 @@ export default function BlogEditor() {
                     
                     try {
                       const res = await api.post("/admin/blogs/ai/meta", { title: form.title, force: true });
+                      
+                      // Update credits instantly
+                      if (typeof res.data.remainingCredits === 'number') {
+                        console.log('[Credits] Inline meta button - AI Meta API returned credits:', res.data.remainingCredits);
+                        updateCredits(res.data.remainingCredits);
+                      }
+                      
                       if (res.data.success && res.data.metaDescriptions) {
                         setSeoMetaDescriptions(res.data.metaDescriptions);
                       }
@@ -1389,6 +1438,7 @@ export default function BlogEditor() {
         <TrendingTopics
           onSelectTrend={handleTrendSelection}
           onClose={() => setShowTrendingModal(false)}
+          updateCredits={updateCredits}
         />
       )}
 

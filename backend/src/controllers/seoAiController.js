@@ -334,6 +334,20 @@ export const generateSeoTitles = async (req, res) => {
       keywords: [json.keyphrases.primary, ...json.keyphrases.secondary]
     }));
 
+    // ✅ AI generation successful - now deduct credits
+    let updatedUser;
+    try {
+      updatedUser = await consumeCredits(req.user._id, CREDIT_COSTS.TITLE);
+    } catch (creditError) {
+      if (creditError.message === "Insufficient credits") {
+        return res.status(403).json({
+          success: false,
+          message: "Insufficient credits. Please top up."
+        });
+      }
+      throw creditError;
+    }
+
     const payload = {
       success: true,
       data: legacyData,
@@ -346,7 +360,8 @@ export const generateSeoTitles = async (req, res) => {
         relatedQueries: relatedQueries.slice(0, 20),
         relatedTopics: relatedTopics,
         trendingTopic: trendingTopic || null  // 🔥 NEW: Include in response
-      } : null
+      } : null,
+      remainingCredits: updatedUser.creditBalance
     };
 
     seoCache.set(input, payload);
@@ -570,10 +585,25 @@ Example format:
       });
     }
 
+    // ✅ AI generation successful - now deduct credits
+    let updatedUser;
+    try {
+      updatedUser = await consumeCredits(req.user._id, CREDIT_COSTS.META);
+    } catch (creditError) {
+      if (creditError.message === "Insufficient credits") {
+        return res.status(403).json({
+          success: false,
+          message: "Insufficient credits. Please top up."
+        });
+      }
+      throw creditError;
+    }
+
     const payload = {
       success: true,
       title,
-      metaDescriptions
+      metaDescriptions,
+      remainingCredits: updatedUser.creditBalance
     };
 
     metaDescCache.set(title, payload);
@@ -781,6 +811,20 @@ NO code blocks, NO explanations, ONLY the JSON object.`;
       }
     }
 
+    // ✅ AI generation successful - now deduct credits
+    let updatedUser;
+    try {
+      updatedUser = await consumeCredits(req.user._id, CREDIT_COSTS.CONTENT);
+    } catch (creditError) {
+      if (creditError.message === "Insufficient credits") {
+        return res.status(403).json({
+          success: false,
+          message: "Insufficient credits. Please top up."
+        });
+      }
+      throw creditError;
+    }
+
     const payload = {
       success: true,
       data: {
@@ -790,6 +834,7 @@ NO code blocks, NO explanations, ONLY the JSON object.`;
         keywords,
         sectionsUsed: sectionsToUse
       },
+      remainingCredits: updatedUser.creditBalance
     };
 
     contentCache.set(cacheKey, payload);

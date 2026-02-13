@@ -109,13 +109,20 @@ const run = async () => {
   const adminUsername = process.env.ADMIN_USERNAME || "admin";
   const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
 
-  const existingAdmin = await Admin.findOne({ username: adminUsername });
-  if (!existingAdmin) {
-    await Admin.create({ username: adminUsername, password: adminPassword });
+  let admin = await Admin.findOne({ username: adminUsername });
+  if (!admin) {
+    admin = await Admin.create({ username: adminUsername, password: adminPassword });
   }
 
   await Blog.deleteMany({});
-  await Blog.insertMany(sampleBlogs);
+  
+  // Add user ID to each blog
+  const blogsWithUser = sampleBlogs.map(blog => ({
+    ...blog,
+    user: admin._id
+  }));
+  
+  await Blog.insertMany(blogsWithUser);
 
   console.log("Seed complete");
   await mongoose.disconnect();

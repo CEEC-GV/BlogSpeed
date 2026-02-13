@@ -76,7 +76,7 @@ const saveLocation = (location) => {
   }
 };
 
-export default function TrendingTopics({ onSelectTrend, onClose }) {
+export default function TrendingTopics({ onSelectTrend, onClose, updateCredits }) {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -221,6 +221,12 @@ export default function TrendingTopics({ onSelectTrend, onClose }) {
         trendingTopic: selectedTopic.keyword,   // 🔥 NEW: Original trending topic
         useRelatedQueries: true,
       });
+
+      // Update credits instantly
+      if (typeof res.data.remainingCredits === 'number' && updateCredits) {
+        console.log('[Credits] TrendsTopics handleSelectRelatedQuery - AI Titles API returned credits:', res.data.remainingCredits);
+        updateCredits(res.data.remainingCredits);
+      }
 
       if (res.data.success) {
         onSelectTrend({
