@@ -10,7 +10,19 @@
  */
 
 import User from "../models/User.js";
+import Admin from "../models/Admin.js";
 import CreditTransaction from "../models/CreditTransaction.js";
+
+/**
+ * Find account by ID — checks User first, then Admin
+ */
+const findAccountById = async (id) => {
+  let account = await User.findById(id);
+  if (account) return { account, type: 'user' };
+  account = await Admin.findById(id);
+  if (account) return { account, type: 'admin' };
+  return { account: null, type: null };
+};
 
 /**
  * Check if user has enough credits
@@ -24,8 +36,8 @@ export const canConsumeCredits = async (user, amount) => {
     throw new Error("Invalid user or credit amount");
   }
 
-  // Re-fetch from DB to ensure we have latest balance
-  const freshUser = await User.findById(user._id);
+  // Re-fetch from DB to ensure we have latest balance (check both User and Admin)
+  const { account: freshUser } = await findAccountById(user._id);
   if (!freshUser) {
     throw new Error("User not found");
   }
@@ -56,11 +68,12 @@ export const consumeCredits = async (userId, amount, feature = "unknown") => {
     throw new Error("Invalid userId or credit amount");
   }
 
-  // ✅ STEP 1: Re-fetch fresh user from database
-  const user = await User.findById(userId);
+  // ✅ STEP 1: Re-fetch fresh account from database (User OR Admin)
+  const { account: user } = await findAccountById(userId);
   if (!user) {
-    throw new Error("User not found");
+    throw new Error("Account not found (checked User and Admin collections)");
   }
+  console.log(`💳 Found account type for ${userId}: ${user.constructor.modelName}`);
 
   const currentBalance = user.creditBalance || 0;
 
@@ -113,9 +126,10 @@ export const addCredits = async (userId, amount, reason = "top-up") => {
     throw new Error("Invalid userId or credit amount");
   }
 
-  const user = await User.findById(userId);
+  // Check both User and Admin collections
+  const { account: user } = await findAccountById(userId);
   if (!user) {
-    throw new Error("User not found");
+    throw new Error("Account not found (checked User and Admin collections)");
   }
 
   const previousBalance = user.creditBalance || 0;
@@ -153,9 +167,9 @@ export const addCredits = async (userId, amount, reason = "top-up") => {
  * @returns {Number} - Current credit balance
  */
 export const getCreditBalance = async (userId) => {
-  const user = await User.findById(userId);
+  const { account: user } = await findAccountById(userId);
   if (!user) {
-    throw new Error("User not found");
+    throw new Error("Account not found (checked User and Admin collections)");
   }
   return user.creditBalance || 0;
 };

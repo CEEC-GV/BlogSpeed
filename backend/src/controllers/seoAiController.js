@@ -11,7 +11,6 @@ let initError = null;
 
 const initializeVertexAI = () => {
   if (model) return model; // Already initialized
-  if (initError) throw initError; // Previous init failed
   
   try {
     // Check if credentials are configured
@@ -52,7 +51,7 @@ const contentCache = new Map();
 const metaDescCache = new Map();
 
 const getSerpApiKey = () => {
-  const key = process.env.SERPAPI_KEY;
+  const key = process.env.SERPAPI_KEY || process.env.SERP_API_KEY;
   if (!key) {
     throw new Error('SERPAPI_KEY is not set in environment variables');
   }
@@ -103,6 +102,17 @@ export const generateSeoTitles = async (req, res) => {
     console.log('👤 req.admin:', req.admin ? 'EXISTS' : 'NULL');
     console.log('👤 req.user:', req.user ? 'EXISTS' : 'NULL');
     
+    // ✅ STEP 1: Authentication check
+    const account = req.admin || req.user;
+    if (!account || !account._id) {
+      console.error('❌ Authentication failed: No admin or user found');
+      return res.status(401).json({
+        success: false,
+        message: "User not authenticated"
+      });
+    }
+    console.log(`✅ Authenticated as: ${account._id}`);
+    
     const { 
       input,                    // The selected related query
       trendingTopic,           // 🔥 NEW: The original trending topic
@@ -111,6 +121,10 @@ export const generateSeoTitles = async (req, res) => {
       geo = 'US' 
     } = req.body;
     
+    if (!input) {
+      return res.status(400).json({ message: "Input is required" });
+    }
+    
     if (force === true) {
       seoCache.delete(input);
     }
@@ -118,10 +132,6 @@ export const generateSeoTitles = async (req, res) => {
     if (seoCache.has(input)) {
       console.log('✅ Returning cached result');
       return res.json(seoCache.get(input));
-    }
-
-    if (!input) {
-      return res.status(400).json({ message: "Input is required" });
     }
 
     // Initialize Vertex AI on first use
@@ -227,7 +237,7 @@ export const generateSeoTitles = async (req, res) => {
       console.warn("⚠️ SERP analysis failed:", serpError.message);
     }
 
-    // 🔥 UPDATED: Enhanced prompt with both contexts
+    // Rest of the titles generation stays the same...
     const prompt = `You are an advanced SEO engine.
 
     Generate SEO-optimized blog metadata for this topic: "${input}"
@@ -327,25 +337,56 @@ export const generateSeoTitles = async (req, res) => {
     }
     
     console.log('Attempting to parse JSON...');
-    const json = JSON.parse(jsonText);
+    let json;
+    try {
+      json = JSON.parse(jsonText);
+    } catch (parseError) {
+      console.error('❌ JSON Parse Error:', parseError.message);
+      console.error('Failed to parse:', jsonText.substring(0, 500));
+      throw new Error('Failed to parse AI response as JSON');
+    }
+
+    // Validate required fields
+    if (!json.titles || !Array.isArray(json.titles) || json.titles.length === 0) {
+      throw new Error('AI response missing valid titles array');
+    }
+    if (!json.metaDescriptions || !Array.isArray(json.metaDescriptions)) {
+      throw new Error('AI response missing valid metaDescriptions array');
+    }
+    if (!json.keyphrases || !json.keyphrases.primary) {
+      throw new Error('AI response missing keyphrases');
+    }
+
+    console.log(`✅ AI Response parsed successfully: ${json.titles.length} titles generated`);
 
     const legacyData = json.titles.map((title) => ({
       title,
       keywords: [json.keyphrases.primary, ...json.keyphrases.secondary]
     }));
 
-    // ✅ AI generation successful - now deduct credits
+    // ✅ STEP 1: Deduct credits ONCE after successful AI generation
+    console.log(`💳 Attempting to deduct credits for account: ${account._id}`);
     let updatedUser;
     try {
-      updatedUser = await consumeCredits(req.user._id, CREDIT_COSTS.TITLE);
+      updatedUser = await consumeCredits(
+        account._id, 
+        CREDIT_COSTS.TITLE_GENERATION || 1,
+        "seo_title"
+      );
+      console.log(`✅ Credits deducted. Remaining: ${updatedUser.creditBalance}`);
     } catch (creditError) {
+      console.error(`⚠️ Credit deduction error (non-fatal):`, creditError.message);
       if (creditError.message === "Insufficient credits") {
         return res.status(403).json({
           success: false,
-          message: "Insufficient credits. Please top up."
+          message: "Insufficient credits. Please top up.",
+          required: CREDIT_COSTS.TITLE_GENERATION || 1,
+          currentBalance: creditError.currentBalance,
+          data: legacyData
         });
       }
-      throw creditError;
+      // Non-fatal: still return AI data even if credits fail
+      console.warn(`⚠️ Returning AI data despite credit error`);
     }
 
     const payload = {
@@ -361,52 +402,32 @@ export const generateSeoTitles = async (req, res) => {
         relatedTopics: relatedTopics,
         trendingTopic: trendingTopic || null  // 🔥 NEW: Include in response
       } : null,
-      remainingCredits: updatedUser.creditBalance
+      remainingCredits: updatedUser?.creditBalance ?? account.creditBalance ?? 0
     };
 
     seoCache.set(input, payload);
-    
-    // ✅ STEP 3: Deduct credits after successful AI generation
-    try {
-      const account = req.admin || req.user;
-      if (account) {
-        const updatedUser = await consumeCredits(
-          account._id,
-          CREDIT_COSTS.TITLE_GENERATION,
-          "seo_title"
-        );
-        payload.creditBalance = updatedUser.creditBalance;
-      }
-    } catch (creditError) {
-      console.error(`❌ Credit deduction failed: ${creditError.message}`);
-      if (creditError.statusCode === 403) {
-        return res.status(403).json({
-          success: false,
-          message: "Insufficient credits. Please top up.",
-          required: CREDIT_COSTS.TITLE_GENERATION,
-          currentBalance: creditError.currentBalance,
-          data: payload.data // Still return generated data
-        });
-      }
-      // Other credit errors - continue but log
-      console.warn(`⚠️ Continue despite credit error: ${creditError.message}`);
-    }
+    console.log('✅ Response cached and ready to send');
     
     return res.json(payload);
 
-  } catch (error) {
-    console.error("SEO Titles ERROR:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: "AI generation failed",
-      error: error.message,
-    });
+  } catch (err) {
+    console.error("FULL ERROR:", err);
+    console.error("STACK:", err.stack);
+    res.status(500).json({ error: err.message });
   }
 };
 
 export const generateMetaDescriptions = async (req, res) => {
   try {
     const { title, force } = req.body;
+
+    const account = req.admin || req.user;
+    if (!account || !account._id) {
+      return res.status(401).json({
+        success: false,
+        message: "User not authenticated"
+      });
+    }
 
     if (!title) {
       return res.status(400).json({ message: "Title is required" });
@@ -588,62 +609,41 @@ Example format:
     // ✅ AI generation successful - now deduct credits
     let updatedUser;
     try {
-      updatedUser = await consumeCredits(req.user._id, CREDIT_COSTS.META);
+      updatedUser = await consumeCredits(
+        account._id,
+        CREDIT_COSTS.META_DESCRIPTION,
+        "meta_description"
+      );
     } catch (creditError) {
+      console.error(`⚠️ Credit deduction error (non-fatal):`, creditError.message);
       if (creditError.message === "Insufficient credits") {
         return res.status(403).json({
           success: false,
           message: "Insufficient credits. Please top up."
         });
       }
-      throw creditError;
+      // Non-fatal: continue with response
     }
 
     const payload = {
       success: true,
       title,
       metaDescriptions,
-      remainingCredits: updatedUser.creditBalance
+      remainingCredits: updatedUser?.creditBalance ?? account.creditBalance ?? 0
     };
 
     metaDescCache.set(title, payload);
     
-    // ✅ STEP 3: Deduct credits after successful AI generation
-    try {
-      const account = req.admin || req.user;
-      if (account) {
-        const updatedUser = await consumeCredits(
-          account._id,
-          CREDIT_COSTS.META_DESCRIPTION,
-          "meta_description"
-        );
-        payload.creditBalance = updatedUser.creditBalance;
-      }
-    } catch (creditError) {
-      console.error(`❌ Credit deduction failed: ${creditError.message}`);
-      if (creditError.statusCode === 403) {
-        return res.status(403).json({
-          success: false,
-          message: "Insufficient credits. Please top up.",
-          required: CREDIT_COSTS.META_DESCRIPTION,
-          currentBalance: creditError.currentBalance,
-          data: payload // Still return generated data
-        });
-      }
-      // Other credit errors - continue but log
-      console.warn(`⚠️ Continue despite credit error: ${creditError.message}`);
-    }
-    
     return res.json(payload);
 
   } catch (error) {
+    console.error("FULL ERROR STACK:", error);
     console.error("Meta Description ERROR:", error.message);
-    console.error("Full error:", error);
-    
     return res.status(500).json({
       success: false,
       message: "AI generation failed",
       error: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : null
     });
   }
 };
@@ -658,6 +658,14 @@ export const generateBlogContent = async (req, res) => {
     relatedQueries = [],
     recommendedSections = []
   } = req.body;
+
+  const account = req.admin || req.user;
+  if (!account || !account._id) {
+    return res.status(401).json({
+      success: false,
+      message: "User not authenticated"
+    });
+  }
 
   if (!title || !keywords || !Array.isArray(keywords)) {
     return res.status(400).json({
@@ -814,15 +822,20 @@ NO code blocks, NO explanations, ONLY the JSON object.`;
     // ✅ AI generation successful - now deduct credits
     let updatedUser;
     try {
-      updatedUser = await consumeCredits(req.user._id, CREDIT_COSTS.CONTENT);
+      updatedUser = await consumeCredits(
+        account._id,
+        CREDIT_COSTS.CONTENT_GENERATION,
+        "blog_content"
+      );
     } catch (creditError) {
+      console.error(`⚠️ Credit deduction error (non-fatal):`, creditError.message);
       if (creditError.message === "Insufficient credits") {
         return res.status(403).json({
           success: false,
           message: "Insufficient credits. Please top up."
         });
       }
-      throw creditError;
+      // Non-fatal: continue with response
     }
 
     const payload = {
@@ -834,45 +847,21 @@ NO code blocks, NO explanations, ONLY the JSON object.`;
         keywords,
         sectionsUsed: sectionsToUse
       },
-      remainingCredits: updatedUser.creditBalance
+      remainingCredits: updatedUser?.creditBalance ?? account.creditBalance ?? 0
     };
 
     contentCache.set(cacheKey, payload);
     
-    // ✅ STEP 3: Deduct credits after successful AI generation
-    try {
-      const account = req.admin || req.user;
-      if (account) {
-        const updatedUser = await consumeCredits(
-          account._id,
-          CREDIT_COSTS.CONTENT_GENERATION,
-          "blog_content"
-        );
-        payload.creditBalance = updatedUser.creditBalance;
-      }
-    } catch (creditError) {
-      console.error(`❌ Credit deduction failed: ${creditError.message}`);
-      if (creditError.statusCode === 403) {
-        return res.status(403).json({
-          success: false,
-          message: "Insufficient credits. Please top up.",
-          required: CREDIT_COSTS.CONTENT_GENERATION,
-          currentBalance: creditError.currentBalance,
-          data: payload.data // Still return generated data
-        });
-      }
-      // Other credit errors - continue but log
-      console.warn(`⚠️ Continue despite credit error: ${creditError.message}`);
-    }
-    
     return res.json(payload);
 
   } catch (error) {
+    console.error("FULL ERROR STACK:", error);
     console.error("Blog Content ERROR:", error.message);
     return res.status(500).json({
       success: false,
       message: "AI generation failed",
       error: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : null
     });
   }
 };

@@ -5,7 +5,9 @@ export const notFound = (req, res, next) => {
 
 export const errorHandler = (err, req, res, next) => {
   const status = res.statusCode && res.statusCode !== 200 ? res.statusCode : 500;
+  console.error("FULL ERROR STACK:", err);
   res.status(status).json({
-    message: err.message || "Server error"
+    message: err.message || "Server error",
+    stack: process.env.NODE_ENV === "development" ? err.stack : null
   });
 };

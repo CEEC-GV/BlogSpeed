@@ -69,6 +69,11 @@ export default function BlogEditor() {
   const [showTrendingModal, setShowTrendingModal] = useState(false);
   const [trendsData, setTrendsData] = useState(null);
 
+  // Function to update credits in the admin context
+  const updateCredits = (newCredits) => {
+    refreshAdmin();
+  };
+
   // WordPress-style slug generation
   function generateSlug(text) {
     if (!text) return "";

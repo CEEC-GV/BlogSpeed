@@ -98,7 +98,7 @@ export default function TrendingTopics({ onSelectTrend, onClose, updateCredits }
   const [timeRange, setTimeRange] = useState('today 12-m');
 
   // 🔥 NEW: Location state
-  const [location, setLocation] = useState(loadLocation);
+  const [location, setLocation] = useState(() => loadLocation());
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [locationForm, setLocationForm] = useState({
     country: '',
@@ -126,8 +126,24 @@ export default function TrendingTopics({ onSelectTrend, onClose, updateCredits }
     { value: 'today 5-y', label: 'Past 5 Years' }
   ];
 
+  // Auto-open location modal if no location is set on first load
   useEffect(() => {
-    fetchTrendingTopics(selectedCategory);
+    // Only open modal on mount if no location is saved
+    if (!location || !location.country) {
+      setShowLocationModal(true);
+      // Initialize the form with an empty country
+      setLocationForm({
+        country: '',
+        state: '',
+        city: ''
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (location.country) {
+      fetchTrendingTopics(selectedCategory);
+    }
   }, [selectedCategory, location]);
 
   useEffect(() => {
@@ -139,7 +155,6 @@ export default function TrendingTopics({ onSelectTrend, onClose, updateCredits }
   const fetchTrendingTopics = async (category) => {
     // Check if location is set
     if (!location.country) {
-      setError("Please set a location to view trending topics");
       setTopics([]);
       setLoading(false);
       return;

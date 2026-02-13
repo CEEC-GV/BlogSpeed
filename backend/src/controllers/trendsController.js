@@ -1,11 +1,64 @@
 import { getJson } from 'serpapi';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
-const getSerpApiKey = () => {
-  const key = process.env.SERPAPI_KEY;
-  if (!key) {
-    throw new Error('SERPAPI_KEY is not set in environment variables');
+/**
+ * Free fallback: Fetch daily trends from Google Trends public RSS feed
+ */
+const fetchFreeTrends = async (geo = 'US') => {
+  const url = `https://trends.google.com/trending/rss?geo=${geo}`;
+  
+  console.log(`🌐 Free fallback: Fetching ${url}`);
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      'Accept': 'application/rss+xml, application/xml, text/xml',
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Google Trends RSS returned ${response.status}`);
   }
+  
+  const xml = await response.text();
+  
+  // Parse RSS XML with regex (lightweight, no dependency needed)
+  const items = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const itemXml = match[1];
+    const title = itemXml.match(/<title>(.*?)<\/title>/)?.[1] || 'Unknown';
+    const traffic = itemXml.match(/<ht:approx_traffic>(.*?)<\/ht:approx_traffic>/)?.[1] || 'N/A';
+    const newsCount = (itemXml.match(/<ht:news_item>/g) || []).length;
+    
+    // Parse traffic number for scoring
+    const trafficNum = parseInt(String(traffic).replace(/[^0-9]/g, '')) || 0;
+    
+    items.push({
+      keyword: title.replace(/&apos;/g, "'").replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'),
+      traffic,
+      searchVolume: traffic,
+      relatedQueries: [],
+      newsArticles: newsCount,
+      trendScore: Math.min(Math.round(trafficNum / 100), 100) || 10
+    });
+  }
+  
+  return items;
+};
+
+const getSerpApiKey = () => {
+  const key = process.env.SERPAPI_KEY || process.env.SERP_API_KEY;
+  if (!key) {
+    console.error('❌ SERPAPI_KEY is missing in environment variables');
+    throw new Error('SERPAPI_KEY is not set in environment variables. Contact administrator.');
+  }
+  if (key.length < 10) {
+    console.error('❌ SERPAPI_KEY appears invalid (too short)');
+    throw new Error('SERPAPI_KEY appears to be invalid');
+  }
+  console.log(`✅ SERPAPI_KEY is configured (length: ${key.length})`);
   return key;
 };
 
@@ -51,6 +104,15 @@ export const getTrendingByCategory = asyncHandler(async (req, res) => {
       hours,
       api_key: getSerpApiKey()
     });
+
+    // Check for SerpAPI error response
+    if (response?.error) {
+      return res.status(503).json({
+        success: false,
+        error: 'Trends API is temporarily unavailable',
+        message: typeof response.error === 'string' ? response.error : JSON.stringify(response.error)
+      });
+    }
 
     // Parse and structure trending topics
     const trendingSearches = response.trending_searches || [];
@@ -233,15 +295,16 @@ export const getInterestOverTime = asyncHandler(async (req, res) => {
 });
 
 /**
- * 🔥 NEW: Combined endpoint for blog topic discovery
- * Returns trending topics + related queries in one call
+ * 🔥 Combined endpoint for blog topic discovery
+ * Uses SerpAPI first, falls back to free google-trends-api if SerpAPI fails
  */
 export const discoverBlogTopics = asyncHandler(async (req, res) => {
   try {
     const { category = 'all', country, state, city } = req.query;
 
-    // ❌ REMOVED: Auto geo-detection
-    // ✅ REQUIRED: Country must be provided by user
+    console.log('🔥 discoverBlogTopics called');
+    console.log('📦 Query params:', { category, country, state, city });
+
     if (!country) {
       return res.status(400).json({
         success: false,
@@ -250,66 +313,89 @@ export const discoverBlogTopics = asyncHandler(async (req, res) => {
     }
 
     const categoryId = TREND_CATEGORIES[category.toLowerCase()] ?? '';
-
-    // Use country code for SerpAPI geo parameter
-    // State and city are for logging/future filtering only
     const geo = country;
 
-    // Fetch trending searches
-    const trendsResponse = await getJson({
-      engine: 'google_trends_trending_now',
-      geo,
-      category_id: categoryId === '' ? undefined : categoryId,
-      api_key: getSerpApiKey()
-    });
-
-
-    const trendingSearches = trendsResponse.trending_searches || [];
-
-    console.log('Trends Response:', trendingSearches);
+    // ===== TRY SerpAPI FIRST =====
+    let topics = [];
+    let source = 'serpapi';
     
-    // Structure trending topics with SEO potential
-    const topics = trendingSearches
-      .map(trend => {
-        const baseScore = calculateTrendScore(trend);
+    try {
+      console.log(`🔍 Trying SerpAPI - Category: ${category}, Geo: ${geo}`);
+      const trendsResponse = await getJson({
+        engine: 'google_trends_trending_now',
+        geo,
+        category_id: categoryId === '' ? undefined : categoryId,
+        api_key: getSerpApiKey()
+      });
 
-        return {
-          keyword: trend.query || trend.title,
-          traffic: trend.increase_percentage || 'N/A',
-          searchVolume: trend.search_volume || 'N/A',
-          relatedQueries: trend.related_queries || [],
-          newsArticles: trend.articles?.length || 0,
-          trendScore: baseScore
-        };
-      })
-      .sort((a, b) => b.trendScore - a.trendScore)
-      .slice(0, 15);
-  console.log(category, topics.slice(0, 5).map(t => t.keyword));
+      if (trendsResponse?.error) {
+        throw new Error(typeof trendsResponse.error === 'string' ? trendsResponse.error : JSON.stringify(trendsResponse.error));
+      }
 
-    // Build location label for response
+      if (trendsResponse?.trending_searches?.length > 0) {
+        topics = trendsResponse.trending_searches
+          .map(trend => ({
+            keyword: trend.query || trend.title,
+            traffic: trend.increase_percentage || 'N/A',
+            searchVolume: trend.search_volume || 'N/A',
+            relatedQueries: trend.related_queries || [],
+            newsArticles: trend.articles?.length || 0,
+            trendScore: calculateTrendScore(trend)
+          }))
+          .sort((a, b) => b.trendScore - a.trendScore)
+          .slice(0, 15);
+        console.log(`✅ SerpAPI returned ${topics.length} topics`);
+      } else {
+        throw new Error('SerpAPI returned empty data');
+      }
+    } catch (serpErr) {
+      const serpMsg = serpErr?.message || (typeof serpErr === 'object' ? JSON.stringify(serpErr) : String(serpErr));
+      console.warn(`⚠️ SerpAPI failed: ${serpMsg}. Falling back to free Google Trends...`);
+      source = 'google-trends-api';
+      
+      // ===== FALLBACK: Free Google Trends direct fetch =====
+      try {
+        const allTrends = await fetchFreeTrends(geo);
+        topics = allTrends.slice(0, 15);
+        console.log(`✅ Free fallback returned ${topics.length} topics`);
+      } catch (freeErr) {
+        console.error('❌ Free fallback also failed:', freeErr.message);
+        return res.status(503).json({
+          success: false,
+          error: 'All trends providers are unavailable',
+          message: `SerpAPI: ${serpMsg}. Fallback: ${freeErr.message}`,
+          suggestion: 'Please try again later.'
+        });
+      }
+    }
+
+    // Build location label
     let locationLabel = country;
-    if (state) {
-      locationLabel = state + ', ' + locationLabel;
-    }
-    if (city) {
-      locationLabel = city + ', ' + locationLabel;
-    }
+    if (state) locationLabel = state + ', ' + locationLabel;
+    if (city) locationLabel = city + ', ' + locationLabel;
 
-    res.json({
+    const response = {
       success: true,
       category,
       geo: country,
       locationLabel,
+      source,
       topics,
       totalTopics: topics.length,
       recommendation: topics[0] ? `"${topics[0].keyword}" is trending with high search volume` : 'No trending topics found'
-    });
-  } catch (error) {
-    console.error('Error discovering blog topics:', error.message);
-    res.status(500).json({
+    };
+
+    console.log(`✅ Sending response with ${topics.length} topics (source: ${source})`);
+    res.json(response);
+
+  } catch (err) {
+    console.error("FULL ERROR:", err);
+    console.error("STACK:", err?.stack);
+    const message = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+    res.status(500).json({ 
       success: false,
-      error: 'Failed to discover topics',
-      message: error.message
+      error: 'Failed to discover trending topics',
+      message 
     });
   }
 });
