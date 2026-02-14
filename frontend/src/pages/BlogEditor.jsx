@@ -475,28 +475,11 @@ export default function BlogEditor() {
     setSeoMode("title");
   };
 
-  const handleSelectTitle = async (title) => {
+  const handleSelectTitle = (title) => {
     setForm((prev) => ({ ...prev, title }));
     setSeoSlug(generateSlug(title));
     setSelectedTitle(title);
-    
-    setMetaLoading(true);
-    setSeoError("");
-
-    try {
-      const res = await api.post("/admin/blogs/ai/meta", { title, force: true });
-      
-      if (res.data.success && res.data.metaDescriptions) {
-        setSeoMetaDescriptions(res.data.metaDescriptions);
-      } else {
-        throw new Error(res.data.message || "Failed to generate meta descriptions");
-      }
-    } catch (err) {
-      console.error("Meta Description Generation Error:", err);
-      setSeoError(err.response?.data?.message || err.message || "Unable to generate meta descriptions.");
-    } finally {
-      setMetaLoading(false);
-    }
+    setSeoMetaDescriptions([]); // Clear previous meta descriptions
   };
 
   const handleSelectMetaDescription = (metaDescription) => {

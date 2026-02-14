@@ -10,6 +10,7 @@ export default function AnalyticsDashboard() {
   
   // Data states
   const [overview, setOverview] = useState(null);
+  const [companyInfo, setCompanyInfo] = useState(null);
   const [blogs, setBlogs] = useState([]);
   const [selectedBlog, setSelectedBlog] = useState(null);
   const [blogAnalytics, setBlogAnalytics] = useState(null);
@@ -28,6 +29,9 @@ export default function AnalyticsDashboard() {
       // Fetch blogs with analytics
       const blogsRes = await api.get("/admin/analytics/blogs");
       setBlogs(blogsRes.data);
+
+      const companyRes = await api.get("/admin/settings");
+      setCompanyInfo(companyRes.data.data);
 
     } catch (err) {
       console.error("Fetch error:", err);
@@ -65,6 +69,76 @@ export default function AnalyticsDashboard() {
             Track blog performance and visitor insights
           </p>
         </div>
+
+        <div className="my-6 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-white/10">
+            <h2 className="text-lg font-semibold text-white">Company Details</h2>
+            <p className="text-sm text-white/50 mt-1">
+              Update basic information shown across the platform
+            </p>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              {/* Company Name */}
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Company Name</label>
+                <input
+                  type="text"
+                  placeholder="Eg. Tabzy Technologies"
+                  value={companyInfo?.companyName || ""}
+                  onChange={(e) =>
+                    setCompanyInfo({ ...companyInfo, companyName: e.target.value })
+                  }
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white
+                            placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+
+              {/* Company Link */}
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Company Website</label>
+                <input
+                  type="text"
+                  placeholder="https://example.com"
+                  value={companyInfo?.companyLink || ""}
+                  onChange={(e) =>
+                    setCompanyInfo({ ...companyInfo, companyLink: e.target.value })
+                  }
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white
+                            placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={async () => {
+                    try {
+                      await api.put("/admin/settings/company", {
+                        companyName: companyInfo.companyName,
+                        companyLink: companyInfo.companyLink,
+                      });
+                    } catch (err) {
+                      console.error("Update company info error:", err);
+                      
+                    }
+                  }}
+                  className="mt-8 w-full h-9 px-3
+                            bg-blue-500/15 border border-blue-500/25 rounded-md
+                            text-xs font-medium text-blue-400
+                            hover:bg-blue-500/25 hover:border-blue-500/40
+                            active:scale-[0.98] transition"
+                >
+                  Save Changes
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+          
 
         {/* Overall Summary Cards */}
         <div className="grid gap-6 md:grid-cols-4 mb-8">

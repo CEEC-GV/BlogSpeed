@@ -51,7 +51,7 @@ app.use("/api/trends", trendsRoutes);
 app.use("/api/admin/analytics", analyticsRoutes);
 app.use("/api/subscribers", subscriberRoutes);
 app.use("/api/contact", contactRoutes);
-app.use("/api/settings", settingsRoutes); 
+app.use("/api/admin/settings", settingsRoutes); 
 
 app.use(notFound);
 app.use(errorHandler);

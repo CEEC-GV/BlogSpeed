@@ -68,7 +68,7 @@ export default function SubscribersPage() {
     loadStats();
   }, []);
   useEffect(() => {
-  api.get("/settings")
+  api.get("/admin/settings")
     .then(res => {
       setAutoBlogEmail(res.data.data.autoBlogEmail);
     })
@@ -239,7 +239,7 @@ useEffect(() => {
       setAutoBlogEmail(nextValue);
 
       try {
-        await api.put("/settings", {
+        await api.put("/admin/settings", {
           autoBlogEmail: nextValue
         });
 
