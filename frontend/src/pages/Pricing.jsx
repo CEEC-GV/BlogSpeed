@@ -140,29 +140,34 @@ export default function Pricing() {
   }
 
   return (
-    <div className="min-h-screen h-screen overflow-hidden flex items-center justify-center bg-[#050816] relative px-6">
-      {/* Subtle dark radial gradient + glow behind cards */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(60%_45%_at_50%_0%,rgba(124,58,237,0.18)_0%,rgba(5,8,22,1)_55%)]" />
-        <div className="absolute left-1/2 top-[52%] -translate-x-1/2 -translate-y-1/2 h-[420px] w-[920px] rounded-full bg-purple-500/10 blur-3xl" />
+    <div className="min-h-screen text-white bg-black relative">
+      {/* Dotted background pattern */}
+      <div className="absolute inset-0 pointer-events-none opacity-10">
+        <div 
+          className="h-full w-full"
+          style={{
+            backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
+            backgroundSize: '40px 40px'
+          }}
+        />
       </div>
 
-      {/* Inner container (locked layout) */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-8">
-        {/* HeaderSection */}
-        <div className="md:col-span-2 text-center">
-          <h1 className="text-5xl font-semibold text-white tracking-tight">
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 py-12">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3">
             Top Up Credits
           </h1>
-          <p className="mt-2 text-sm md:text-base text-white/60">
+          <p className="text-sm md:text-base text-white/60">
             Buy credits and unlock premium AI workflows on demand.
           </p>
         </div>
 
         {/* CurrentBalanceCard */}
         {user && (
-          <div className="md:col-span-2">
-            <div className="max-w-5xl mx-auto rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl px-8 py-6">
+          <div className="mb-8">
+            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl px-8 py-6">
               <p className="text-xs font-semibold text-white/50 uppercase tracking-wider">
                 Current Balance
               </p>
@@ -178,38 +183,39 @@ export default function Pricing() {
 
         {/* Error Message */}
         {error && (
-          <div className="md:col-span-2 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl backdrop-blur-xl">
+          <div className="mb-8 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl backdrop-blur-xl">
             {error}
           </div>
         )}
 
-        {/* Credit cards */}
-        {CREDIT_PLANS.map((plan) => {
-          const isBestValue = Boolean(plan.popular);
-          const isPro = plan.credits === 150;
+        {/* Credit cards grid */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          {CREDIT_PLANS.map((plan) => {
+            const isBestValue = Boolean(plan.popular);
+            const isPro = plan.credits === 150;
 
-          return (
-            <div
-              key={plan.id}
-              className={`relative rounded-3xl border border-white/10 backdrop-blur-xl overflow-hidden ${
-                isPro
-                  ? "bg-gradient-to-br from-[#1b1235] to-[#2c114d]"
-                  : "bg-[#0B1220]"
-              }`}
-            >
+            return (
+              <div
+                key={plan.id}
+                className={`relative rounded-2xl border backdrop-blur-xl overflow-hidden ${
+                  isPro
+                    ? "border-white/20 bg-white/8"
+                    : "border-white/10 bg-white/5"
+                }`}
+              >
               {isBestValue && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2">
-                  <div className="bg-pink-500/20 text-pink-300 rounded-full px-3 py-1 text-xs font-semibold border border-white/10">
+                <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-20">
+                  <div className="bg-white/10 text-white rounded-full px-3 py-1 text-xs font-semibold border border-white/20 backdrop-blur-xl">
                     Best Value
                   </div>
                 </div>
               )}
 
-              <div className="p-8">
+              <div className="p-6">
                   {/* Icon container (top-left) */}
                   <div className="flex items-start justify-between">
                     <div
-                      className={`h-12 w-12 rounded-2xl flex items-center justify-center border border-white/10 ${
+                      className={`h-12 w-12 rounded-lg flex items-center justify-center border border-white/10 ${
                         isPro ? "bg-white/10" : "bg-white/5"
                       }`}
                     >
@@ -290,9 +296,9 @@ export default function Pricing() {
                     <Button
                       onClick={() => handleUpgrade(plan)}
                       disabled={loading}
-                      className={`w-full py-4 text-sm md:text-base font-semibold rounded-2xl transition-all ${
+                      className={`w-full py-3 text-sm md:text-base font-semibold rounded-lg transition-all ${
                         isPro
-                          ? "bg-gradient-to-r from-purple-500/70 to-amber-400/70 hover:from-purple-500/80 hover:to-amber-400/80 text-white border border-white/10"
+                          ? "bg-white/10 hover:bg-white/20 text-white border border-white/20"
                           : "bg-white/5 hover:bg-white/10 text-white/90 border border-white/10"
                       }`}
                     >
@@ -304,10 +310,11 @@ export default function Pricing() {
           );
         })}
 
-        <p className="md:col-span-2 text-center text-xs text-white/40">
+        <p className="text-center text-xs text-white/40 mt-8">
           Credits never expire. Use them whenever you need premium AI features.
         </p>
       </div>
+    </div>
     </div>
   );
 }

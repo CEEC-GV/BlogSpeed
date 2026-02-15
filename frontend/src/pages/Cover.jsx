@@ -928,8 +928,8 @@ const BlogSpeedsLanding = () => {
                 <span className="text-xl font-bold">BlogSpeeds</span>
               </div>
               <div className="flex gap-8 text-sm text-white/60">
-                <a href="#" className="hover:text-white transition">Privacy</a>
-                <a href="#" className="hover:text-white transition">Terms</a>
+                <a href="/privacy" className="hover:text-white transition">Privacy</a>
+                <a href="/terms" className="hover:text-white transition">Terms</a>
                 <a href="#" className="hover:text-white transition">Contact</a>
               </div>
               <div className="text-sm text-white/40">

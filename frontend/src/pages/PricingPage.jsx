@@ -124,12 +124,16 @@ export default function PricingPage() {
   }
 
   return (
-    <section className="min-h-screen bg-slate-950 py-16 px-4">
-      {!isAdminRoute && (
-        <div className="fixed top-6 left-6 z-40">
-          <img src='/src/assets/logo-white.png' alt="BlogSpeed Logo" className="h-8 w-auto" />
-        </div>
-      )}
+    <section className="min-h-screen py-16 px-4 relative">
+      
+
+      {/* Content wrapper */}
+      <div className="relative z-10">
+        {!isAdminRoute && (
+          <div className="fixed top-6 left-6 z-40">
+            <img src='/src/assets/logo-white.png' alt="BlogSpeed Logo" className="h-8 w-auto" />
+          </div>
+        )}
 
 
 
@@ -156,7 +160,7 @@ export default function PricingPage() {
 
       {currentAccount && (
         <div className="max-w-4xl mx-auto mb-12">
-          <div className="rounded-3xl border border-white/10 bg-white/5 px-8 py-6 backdrop-blur">
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-8 py-6 backdrop-blur-xl">
             <p className="text-sm uppercase tracking-wide text-white/50">Current balance</p>
             <div className="mt-2 flex items-center gap-3">
               <span className="text-3xl font-semibold text-white">
@@ -174,15 +178,15 @@ export default function PricingPage() {
           return (
             <div
               key={plan.id}
-              className={`relative group rounded-3xl border p-8 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-2 ${
+              className={`relative group rounded-2xl border p-8 transition-all duration-500 ${
                 plan.highlight
-                  ? "bg-gradient-to-b from-purple-500/20 to-pink-500/10 border-purple-500/30 shadow-2xl shadow-purple-500/20"
-                  : "bg-white/5 border-white/10 hover:border-white/20"
+                  ? "bg-black border-white/20"
+                  : "bg-black border-white/10 hover:border-white/20"
               }`}
             >
               {plan.highlight && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-semibold shadow-lg">
+                <div className="absolute -top-2 left-1/2 -translate-x-1/2">
+                  <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/10 text-white text-xs font-semibold border border-white/20 backdrop-blur-xl">
                     <Zap className="w-3 h-3" />
                     Best Value
                   </span>
@@ -190,10 +194,10 @@ export default function PricingPage() {
               )}
 
               <div
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${
+                className={`w-14 h-14 rounded-lg flex items-center justify-center mb-6 border border-white/10 ${
                   plan.highlight
-                    ? "bg-gradient-to-br from-purple-500 to-pink-500"
-                    : "bg-white/10"
+                    ? "bg-white/10"
+                    : "bg-white/5"
                 }`}
               >
                 <Icon className={`w-7 h-7 ${plan.highlight ? "text-white" : "text-white/70"}`} />
@@ -213,10 +217,10 @@ export default function PricingPage() {
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-start gap-3">
                     <div
-                      className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${
+                      className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 border border-white/10 ${
                         plan.highlight
-                          ? "bg-purple-500/20 text-purple-400"
-                          : "bg-white/10 text-white/60"
+                          ? "bg-white/10 text-white"
+                          : "bg-white/5 text-white/60"
                       }`}
                     >
                       <Check className="w-3 h-3" />
@@ -233,8 +237,8 @@ export default function PricingPage() {
                 size="lg"
                 className={`w-full ${
                   plan.highlight
-                    ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 border-0"
-                    : ""
+                    ? "bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                    : "bg-white/5 border-white/10 hover:bg-white/10 text-white"
                 }`}
               >
                 {upgrading === plan.id ? (
@@ -288,6 +292,7 @@ export default function PricingPage() {
           </a>
         </div>
       )}
+      </div>
     </section>
   );
 }

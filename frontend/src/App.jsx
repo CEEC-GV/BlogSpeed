@@ -12,6 +12,8 @@ import SubscribersPage from "./pages/Subscribers.jsx";
 import PricingPage from "./pages/PricingPage.jsx";
 import UserLogin from "./pages/UserLogin.jsx";
 import UserRegister from "./pages/UserRegister.jsx";
+import TermsConditions from "./pages/TermsConditions.jsx";
+import PrivacyPolicy from "./pages/PrivacyPolicy.jsx";
 import { UserProvider } from "./context/UserContext.jsx";
 import { AdminProvider } from "./context/AdminContext.jsx";
 
@@ -25,6 +27,8 @@ export default function App() {
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/login" element={<UserLogin />} />
           <Route path="/register" element={<UserRegister />} />
+          <Route path="/terms" element={<TermsConditions />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
 
           <Route
             path="/admin"
